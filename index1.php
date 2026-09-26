@@ -1,560 +1,610 @@
 <?php
-require_once 'dbconnection.inc.php';
 session_start();
+require_once 'dbconnection.inc.php';
 
-if (!isset($_SESSION['Email1']) && !isset($_SESSION['adminname1'])) {
-    header("Location: login.html");
-    exit(); // Always exit after a header redirect
+// Check Area Admin session
+$email = $_SESSION['Email1'] ?? $_SESSION['Email'] ?? null;
+if (!$email) {
+    header("Location: login_page.html");
+    exit();
+}
+
+$stmt = $conn->prepare("SELECT Fullname, Location, Administrator_ID FROM `admin` WHERE `Email_Address` = ?");
+$stmt->bind_param("s", $email);
+$stmt->execute();
+$query_result = $stmt->get_result();
+$row = $query_result->fetch_assoc();
+$stmt->close();
+
+if ($row) {
+    $admin_fullname = $row['Fullname'];
+    $admin_location = $row['Location'];
+    $admin_id       = $row['Administrator_ID'];
 } else {
-    $email = $_SESSION['Email1'];
-    // Use prepared statements for security
-    $stmt = mysqli_prepare($conn, "SELECT Fullname, Location, Administrator_ID FROM `admin` WHERE `Email_Address` = ?");
-    mysqli_stmt_bind_param($stmt, "s", $email);
-    mysqli_stmt_execute($stmt);
-    $query_result = mysqli_stmt_get_result($stmt);
-    $row = mysqli_fetch_array($query_result);
-    mysqli_stmt_close($stmt);
+    session_unset();
+    session_destroy();
+    header("Location: login_page.html");
+    exit();
+}
 
-    if ($row) {
-        $admin_fullname = $row['Fullname'];
-        $admin_location = $row['Location'];
-        $admin_id = $row['Administrator_ID'];
-    } else {
-        // Handle case where admin is not found, perhaps redirect to login
-        session_unset();
-        session_destroy();
-        header("Location: login.html");
+// Handle manual dropdown fallback status update
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
+    $donation_id = intval($_POST['donation_id']);
+    $new_status  = trim($_POST['status']);
+
+    $allowed = ['Pending Pickup', 'Collected', 'Delivered'];
+    if (in_array($new_status, $allowed)) {
+        $stmt_upd = $conn->prepare("UPDATE `goods_donated` SET `Status` = ? WHERE `Dontation_ID` = ?");
+        $stmt_upd->bind_param("si", $new_status, $donation_id);
+        $stmt_upd->execute();
+        $stmt_upd->close();
+
+        header("Location: index1.php?status_updated=success");
         exit();
     }
 }
-
-// Handle status update POST request
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
-    $donation_id = $_POST['donation_id'];
-    $new_status = $_POST['status'];
-
-    // Validate input to prevent SQL injection or invalid status values
-    $allowed_statuses = ['Pending Pickup', 'Collected', 'Delivered']; // Define your allowed statuses. Ensure these match your actual statuses.
-    if (in_array($new_status, $allowed_statuses)) {
-        // Re-establish connection for the update if $conn might be closed from other operations.
-        // Or, ideally, ensure $conn remains open for the entire script execution.
-        // For consistency with your original approach, we'll keep a separate connection here for updates.
-        $conn_update = mysqli_connect("localhost", "root", "", "food_distribution");
-        if ($conn_update->connect_error) {
-            die("Connection failed: " . $conn_update->connect_error);
-        }
-
-        $stmt_update = mysqli_prepare($conn_update, "UPDATE `goods_donated` SET `Status` = ? WHERE `Dontation_ID` = ?");
-        mysqli_stmt_bind_param($stmt_update, "si", $new_status, $donation_id);
-
-        if (mysqli_stmt_execute($stmt_update)) {
-            // Status updated successfully. Redirect to prevent resubmission on refresh.
-            header("Location: index1.php?status_updated=success");
-            exit();
-        } else {
-            // Error handling
-            error_log("Error updating donation status: " . mysqli_error($conn_update));
-            // You might want to add a user-friendly error message here
-        }
-        mysqli_stmt_close($stmt_update);
-        $conn_update->close();
-    }
-}
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
     <meta charset="utf-8">
-    <title>Food Donation System - Area Administrator Homepage</title>
+    <title>Area Admin Portal - Food Aid Traceability System</title>
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
-    <meta content="Free HTML Templates" name="keywords">
-    <meta content="Free HTML Templates" name="description">
 
     <link href="img/favicon.ico" rel="icon">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
-    <link rel="preconnect" href="https://fonts.gstatic.com">
-    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600&family=Roboto:wght@500;700&display=swap" rel="stylesheet">
-
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.4.1/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 
-    <link href="lib/owlcarousel/assets/owl.carousel.min.css" rel="stylesheet">
+    <!-- HTML5 QR Camera Scanner via CDN -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
-    <link href="css/bootstrap.min.css" rel="stylesheet">
-
-    <link href="css/style.css" rel="stylesheet">
-
-    <style type="text/css">
-        /* Custom Table Styles for a modern look */
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 1.5rem;
-            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-            background-color: #fff;
-            border-radius: 0.5rem;
-            overflow: hidden;
+    <style>
+        :root {
+            --primary: #16a34a;
+            --primary-hover: #15803d;
+            --primary-subtle: #dcfce7;
+            --dark: #0f172a;
+            --gray-body: #64748b;
+            --bg-light: #f8fafc;
+            --card-border: #e2e8f0;
         }
 
-        th, tr, td {
-            border: 1px solid #dee2e6;
-            padding: 12px 15px;
-            text-align: left;
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: var(--bg-light);
+            color: var(--dark);
+            min-height: 100vh;
         }
 
-        th {
-            background-color: #f8f9fa;
-            font-weight: 600;
-            color: #343a40;
-            border-bottom: 2px solid #dee2e6;
+        .navbar {
+            background-color: #ffffff;
+            border-bottom: 1px solid var(--card-border);
         }
-
-        tr:nth-child(even) {
-            background-color: #f2f2f2;
-        }
-
-        tr:hover {
-            background-color: #e9ecef;
-        }
-
-        /* Specific styles for buttons to make them cohesive */
-        .print-button, .add-commodity-link, .delete-commodity-btn {
-            display: inline-block;
-            padding: 0.75rem 1.5rem;
-            font-size: 1rem;
-            font-weight: 600;
-            text-align: center;
-            text-decoration: none;
-            border-radius: 0.5rem;
-            cursor: pointer;
-            transition: all 0.2s ease-in-out;
-            margin-right: 1rem;
-            margin-bottom: 1rem;
-        }
-
-        .print-button {
-            background-color: #0d6efd;
-            color: #fff;
-            border: 1px solid #0d6efd;
-        }
-        .print-button:hover {
-            background-color: #0b5ed7;
-            border-color: #0a58ca;
-        }
-
-        .add-commodity-link {
-            background-color: #198754;
-            color: #fff;
-            border: 1px solid #198754;
-        }
-        .add-commodity-link:hover {
-            background-color: #157347;
-            border-color: #146c43;
-        }
-
-        .delete-commodity-btn {
-            background-color: #dc3545;
-            color: #fff;
-            border: 1px solid #dc3545;
-        }
-        .delete-commodity-btn:hover {
-            background-color: #bb2d3b;
-            border-color: #b02a37;
-        }
-
-        /* Styling for form elements */
-        .delete-form .form-control {
-            width: auto;
-            display: inline-block;
-            margin-right: 0.5rem;
-            padding: 0.75rem 1rem;
-            border: 1px solid #ced4da;
-            border-radius: 0.25rem;
-            color: #212529;
-            background-color: #fff;
-            font-size: 1rem;
-            line-height: 1.5;
-            transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
-        }
-        .delete-form .form-control:focus {
-            border-color: #86b7fe;
-            outline: 0;
-            box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
-        }
-
-        /* Adjustments for section headings */
-        .display-5 {
-            font-size: calc(1.425rem + 2.1vw);
+        .brand-title {
+            font-size: 1.5rem;
             font-weight: 700;
-            line-height: 1.2;
-            margin-bottom: 2rem;
-            color: #343a40;
+            color: var(--primary);
+            text-decoration: none;
+            letter-spacing: -0.5px;
+        }
+        .brand-title span { color: var(--dark); }
+
+        .hero-banner {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #064e3b 100%);
+            color: #ffffff;
+            padding: 3.5rem 0;
+            margin-bottom: 2.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         }
 
-        /* General container padding */
-        .py-5 {
-            padding-top: 3rem !important;
-            padding-bottom: 3rem !important;
-        }
-        .mb-5 {
-            margin-bottom: 3rem !important;
-        }
-        .mt-5 {
-            margin-top: 3rem !important;
+        .section-card {
+            background: #ffffff;
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            box-shadow: 0 8px 25px rgba(15, 23, 42, 0.04);
+            padding: 2.25rem;
+            margin-bottom: 2.5rem;
         }
 
-        /* --- NEW STYLES FOR CAROUSEL IMAGE AND OVERLAY --- */
-        .carousel-item {
-            position: relative; /* Needed for positioning the overlay */
+        .table thead th {
+            background-color: #f1f5f9;
+            color: #334155;
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid var(--card-border);
+            padding: 0.9rem 1rem;
         }
 
-        .carousel-item img {
-            width: 100%;        /* Ensures it fills the width of its container */
-            height: 500px;      /* Set a fixed height for the carousel image */
-            object-fit: cover;  /* Crucial: Covers the area while maintaining aspect ratio, cropping if needed */
+        .table tbody td {
+            vertical-align: middle;
+            font-size: 0.92rem;
+            padding: 0.9rem 1rem;
+            color: #1e293b;
         }
 
-        .carousel-caption::before {
-            content: "";
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5); /* Black overlay with 50% opacity */
-            z-index: 0; /* Ensures it's behind the text but over the image */
+        .btn-primary-custom {
+            background-color: var(--primary);
+            color: #ffffff;
+            border: none;
+            font-weight: 600;
+            border-radius: 8px;
+            padding: 0.55rem 1.25rem;
+            transition: all 0.2s;
+        }
+        .btn-primary-custom:hover {
+            background-color: var(--primary-hover);
+            color: #ffffff;
+            transform: translateY(-1px);
         }
 
-        .carousel-caption h3,
-        .carousel-caption h1,
-        .carousel-caption p {
-            color: #FFFFFF !important; /* Changed text color to white and made it important to override existing styles */
-            position: relative; /* Brings text above the overlay */
-            z-index: 1; /* Ensures text is on top of the overlay */
-            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7); /* Add a subtle text shadow for better readability */
+        .btn-print {
+            background-color: #ffffff;
+            border: 1px solid var(--card-border);
+            color: var(--gray-body);
+            font-weight: 600;
+            font-size: 0.875rem;
+            padding: 0.55rem 1.25rem;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+        .btn-print:hover {
+            background-color: #f1f5f9;
+            color: var(--dark);
         }
 
-        /* --- LOGOUT BUTTON SPECIFIC STYLES --- */
-        .carousel-caption .btn-primary {
-            position: relative; /* This is key! Makes z-index effective */
-            z-index: 2; /* Ensures the button is above the overlay and text */
-            /* You can add more styling here if you want to modify its appearance further */
+        /* Status Badges */
+        .status-badge {
+            font-size: 0.775rem;
+            font-weight: 600;
+            padding: 0.35rem 0.75rem;
+            border-radius: 50px;
+            transition: all 0.3s ease;
         }
-        /* --- END NEW STYLES --- */
+        .status-pending { background-color: #fef3c7; color: #92400e; }
+        .status-collected { background-color: #e0f2fe; color: #0369a1; }
+        .status-delivered { background-color: #dcfce7; color: #166534; }
+
+        /* Camera Scanner Modal Styles */
+        #modal-qr-reader {
+            width: 100%;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 2px dashed #cbd5e1;
+            background-color: #f8fafc;
+        }
+        #modal-qr-reader video {
+            width: 100% !important;
+            height: auto !important;
+            border-radius: 8px;
+        }
+
+        .site-footer {
+            background-color: #0b1120;
+            color: #94a3b8;
+            font-size: 0.9rem;
+            padding: 3.5rem 0 1.5rem 0;
+            margin-top: 5rem;
+        }
     </style>
 </head>
 
 <body>
-
-    <div class="container-fluid px-5 d-none d-lg-block">
-        <div class="row gx-5 py-3 align-items-center">
-            <div class="col-lg-12 text-center"> <div class="d-flex align-items-center justify-content-center">
-                    <a href="index1.php" class="navbar-brand m-0"> <h1 class="display-4 text-primary"><span class="text-secondary">Food</span> Donation</h1>
-                    </a>
-                </div>
-            </div>
-            </div>
-    </div>
-    <nav class="navbar navbar-expand-lg bg-primary navbar-dark shadow-sm py-3 py-lg-0 px-3 px-lg-5">
-        <a href="index1.php" class="navbar-brand d-flex d-lg-none">
-            <h1 class="m-0 display-4 text-secondary"><span class="text-white">Food</span> Donation</h1>
-        </a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="navbarCollapse">
-            <div class="navbar-nav mx-auto py-0">
-                <a href="index1.php" class="nav-item nav-link active">Home</a>
-                <a href="login_page.html" class="nav-item nav-link">Logout</a>
+    <!-- Top Navigation -->
+    <nav class="navbar navbar-expand-lg sticky-top">
+        <div class="container">
+            <a href="index1.php" class="brand-title">Food<span>Trace</span> <span class="badge bg-success-subtle text-success fs-6 fw-semibold ms-2">Area Administrator</span></a>
+            <div class="ms-auto d-flex align-items-center gap-3">
+                <span class="small text-muted d-none d-md-inline"><i class="bi bi-geo-alt-fill text-success me-1"></i><?php echo htmlspecialchars($admin_location); ?> Hub</span>
+                <a href="homepage.html" class="btn btn-outline-secondary btn-sm">Home</a>
+                <a href="logout.php" class="btn btn-outline-danger btn-sm"><i class="bi bi-box-arrow-right me-1"></i>Logout</a>
             </div>
         </div>
     </nav>
-    <div class="container-fluid p-0">
-        <div id="header-carousel" class="carousel slide carousel-fade" data-bs-ride="carousel">
-            <div class="carousel-inner">
-                <div class="carousel-item active">
-                    <img class="w-100 carousel-img" src="https://images.pexels.com/photos/9090854/pexels-photo-9090854.jpeg" alt="Food Donation Image">
-                    <div class="carousel-caption top-0 bottom-0 start-0 end-0 d-flex flex-column align-items-center justify-content-center">
-                        <div class="text-start p-5" style="max-width: 900px;">
-                            <h3 class="text-white">Food Donation</h3>
-                            <h1 class="display-1 text-white mb-md-4">Welcome <?php echo htmlspecialchars($admin_fullname); ?></h1>
-                            <?php if (!empty($admin_location)): ?>
-                            <p class="text-white mb-3"><i class="bi bi-geo-alt me-2"></i>Managing: <?php echo htmlspecialchars($admin_location); ?></p>
-                            <?php endif; ?>
-                            <a href="login_page.html" class="btn btn-primary py-md-3 px-md-5 me-3">Logout</a>
-                        </div>
-                    </div>
+
+    <!-- Hero Banner -->
+    <header class="hero-banner">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-lg-8">
+                    <span class="badge bg-success mb-2 px-3 py-2 fw-semibold">Regional Operations Center</span>
+                    <h2 class="fw-bold mb-2">Welcome, <?php echo htmlspecialchars($admin_fullname); ?></h2>
+                    <p class="text-white-50 mb-0">Managing Sub-County: <strong class="text-white"><?php echo htmlspecialchars($admin_location); ?></strong>. Declare local supply needs and verify consignment drop-offs using camera QR inspection.</p>
                 </div>
             </div>
         </div>
-    </div>
-    <div class="container-fluid py-5" id="service">
-        <div class="container">
-            <div class="mx-auto text-center mb-5" style="max-width: 700px;">
-                <h1 class="display-5">List of Commodities in Your Area</h1>
+    </header>
+
+    <div class="container">
+        
+        <!-- Notifications -->
+        <div id="commodity-alert" class="alert alert-success alert-dismissible fade show d-none mb-4" role="alert">
+            <i class="bi bi-check-circle-fill me-2 fs-5 align-middle"></i>
+            <strong>Commodity Added Successfully!</strong> The new supply deficit has been published and is now visible to donors.
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+
+        <div id="status-alert" class="alert alert-success alert-dismissible fade show d-none mb-4" role="alert">
+            <i class="bi bi-check-circle-fill me-2 fs-5 align-middle"></i>
+            <strong>Status Updated!</strong> The consignment milestone has been updated in database records.
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+
+        <!-- Section 1: Commodities Declared for Area -->
+        <div class="section-card">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-2">
+                <div>
+                    <h4 class="fw-bold mb-1">Declared Commodities in Your Area</h4>
+                    <p class="text-muted small mb-0">Active supply requests listed for <?php echo htmlspecialchars($admin_location); ?></p>
+                </div>
+                <div class="d-flex gap-2">
+                    <a href="commodity.php" class="btn btn-primary-custom btn-sm"><i class="bi bi-plus-circle me-1"></i> Add New Commodity</a>
+                    <button onclick="printTableData('printTable1', 'Commodities in Area')" class="btn btn-print btn-sm"><i class="bi bi-printer me-1"></i> Print</button>
+                </div>
             </div>
-            <div class="row g-5 justify-content-center">
-                <div class="col-lg-10 col-md-12">
-                    <table id="printTable1" class="table table-hover table-bordered">
-                        <thead>
-                            <tr>
-                                <th>Commodity ID</th>
-                                <th>Area Administrator ID</th>
-                                <th>Location</th>
-                                <th>Commodity</th>
-                                <th>Quantity</th>
-                                <th>Date Added</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php
-                            // Re-establish connection for the first table
-                            $conn_table1 = mysqli_connect("localhost", "root", "", "food_distribution");
 
-                            // Check connection
-                            if ($conn_table1->connect_error) {
-                                die("Connection failed: " . $conn_table1->connect_error);
+            <div class="table-responsive">
+                <table id="printTable1" class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Commodity ID</th>
+                            <th>Admin ID</th>
+                            <th>Location</th>
+                            <th>Commodity</th>
+                            <th>Quantity Needed</th>
+                            <th>Date Added</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php
+                        $stmt_c = $conn->prepare("
+                            SELECT c.Commodity_ID, c.Area_Administrator, a.Location, c.Commodity, c.Quantity, c.Date_Added
+                            FROM `commodity` c
+                            JOIN `admin` a ON c.Area_Administrator = a.Administrator_ID
+                            WHERE c.Area_Administrator = ?
+                            ORDER BY c.Commodity_ID DESC
+                        ");
+                        $stmt_c->bind_param("i", $admin_id);$stmt_c->execute();
+                        $res_c =$stmt_c->get_result();
+
+                        if ($res_c &&$res_c->num_rows > 0) {
+                            while ($row_c =$res_c->fetch_assoc()) {
+                                echo "<tr>";
+                                echo "<td><span class='badge bg-light text-dark border'>#" . htmlspecialchars($row_c["Commodity_ID"]) . "</span></td>";
+                                echo "<td>" . htmlspecialchars($row_c["Area_Administrator"]) . "</td>";
+                                echo "<td><i class='bi bi-geo-alt text-success me-1'></i>" . htmlspecialchars($row_c["Location"]) . "</td>";
+                                echo "<td class='fw-semibold'>" . htmlspecialchars($row_c["Commodity"]) . "</td>";
+                                echo "<td><span class='badge bg-secondary-subtle text-secondary-emphasis'>" . htmlspecialchars($row_c["Quantity"]) . "</span></td>";
+                                echo "<td class='text-muted small'>" . htmlspecialchars($row_c["Date_Added"]) . "</td>";
+                                echo "</tr>";
                             }
+                        } else {
+                            echo "<tr><td colspan='6' class='text-center py-4 text-muted'>No commodities currently declared for this regional hub.</td></tr>";
+                        }
+                        $stmt_c->close();
+                        ?>
+                    </tbody>
+                </table>
+            </div>
 
-                            $stmt_commodities = mysqli_prepare($conn_table1, "SELECT c.Commodity_ID, c.Area_Administrator, a.Location, c.Commodity, c.Quantity, c.Date_Added
-                                FROM `commodity` c
-                                JOIN `admin` a ON c.Area_Administrator = a.Administrator_ID
-                                WHERE c.Area_Administrator = ?");
-                            mysqli_stmt_bind_param($stmt_commodities, "i", $admin_id); // Assuming admin_id is an integer
-                            mysqli_stmt_execute($stmt_commodities);
-                            $result_commodities = mysqli_stmt_get_result($stmt_commodities);
+            <div class="mt-4 pt-3 border-top text-center">
+                <form method="POST" action="delete.php" class="d-inline-flex flex-wrap align-items-center justify-content-center gap-2">
+                    <span class="small text-muted">To remove a fulfilled commodity need, enter ID:</span>
+                    <input type="number" required name="id1" class="form-control form-control-sm" placeholder="Commodity ID" style="max-width: 140px;">
+                    <button type="submit" name="delc1" class="btn btn-outline-danger btn-sm">Delete Commodity</button>
+                </form>
+            </div>
+        </div>
 
-                            if ($result_commodities->num_rows > 0) {
-                                while($row_commodity = $result_commodities->fetch_assoc()) {
-                                    echo "<tr>";
-                                    echo "<td>" . htmlspecialchars($row_commodity["Commodity_ID"]) . "</td>";
-                                    echo "<td>" . htmlspecialchars($row_commodity["Area_Administrator"]) . "</td>";
-                                    echo "<td>" . htmlspecialchars($row_commodity["Location"]) . "</td>";
-                                    echo "<td>" . htmlspecialchars($row_commodity["Commodity"]) . "</td>";
-                                    // This line will display the quantity with the unit, e.g., "32 kg"
-                                    echo "<td>" . htmlspecialchars($row_commodity["Quantity"]) . "</td>";
-                                    echo "<td>" . htmlspecialchars($row_commodity["Date_Added"]) . "</td>";
-                                    echo "</tr>";
+        <!-- Section 2: Goods Donated & Live QR Camera Scanner -->
+        <div class="section-card">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-2">
+                <div>
+                    <h4 class="fw-bold mb-1">List of Goods Donated (Consignments)</h4>
+                    <p class="text-muted small mb-0">Verify intake and final delivery automatically using live camera QR inspection</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary-custom btn-sm" data-bs-toggle="modal" data-bs-target="#qrScanModal">
+                        <i class="bi bi-camera me-1"></i> Scan Consignment QR
+                    </button>
+                    <button onclick="printTableData('printTable2', 'List of Goods Donated')" class="btn btn-print btn-sm">
+                        <i class="bi bi-printer me-1"></i> Print
+                    </button>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table id="printTable2" class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Donation ID</th>
+                            <th>Commodity</th>
+                            <th>Donor ID</th>
+                            <th>Quantity Pledged</th>
+                            <th>Pledge Date</th>
+                            <th>Location</th>
+                            <th>Status</th>
+                            <th>Manual Override</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php
+                        $sql_donations = "
+                            SELECT gd.Dontation_ID, gd.Commodity_ID, gd.Donor_ID, c.Commodity AS Commodity_Name, 
+                                   gd.Quantity AS Donated_Qty, c.Quantity AS Commodity_Qty_Str, gd.Date_Donated, gd.Location, gd.Status
+                            FROM `goods_donated` gd
+                            JOIN `commodity` c ON gd.Commodity_ID = c.Commodity_ID
+                            ORDER BY gd.Dontation_ID DESC
+                        ";
+                        $res_donations = $conn->query($sql_donations);
+
+                        if ($res_donations &&$res_donations->num_rows > 0) {
+                            while ($row_d = $res_donations->fetch_assoc()) {$unit = '';
+                                if (preg_match('/^\d+(\.\d+)?\s*([a-zA-Z]+)?$/', $row_d['Commodity_Qty_Str'],$matches)) {
+                                    $unit =$matches[2] ?? '';
                                 }
-                            } else {
-                                echo "<tr><td colspan='6' class='text-center text-muted'>No commodities found for this area.</td></tr>";
+
+                                $status =$row_d["Status"];
+                                $badge_class = "status-pending";
+                                if ($status === "Collected") $badge_class = "status-collected";
+                                if ($status === "Delivered") $badge_class = "status-delivered";
+
+                                echo "<tr id='row-donation-" . htmlspecialchars($row_d["Dontation_ID"]) . "'>";
+                                echo "<td><strong>#" . htmlspecialchars($row_d["Dontation_ID"]) . "</strong></td>";
+                                echo "<td class='fw-semibold'>" . htmlspecialchars($row_d["Commodity_Name"]) . "</td>";
+                                echo "<td>Donor #" . htmlspecialchars($row_d["Donor_ID"]) . "</td>";
+                                echo "<td>" . htmlspecialchars($row_d["Donated_Qty"]) . " " . htmlspecialchars($unit) . "</td>";
+                                echo "<td class='text-muted small'>" . htmlspecialchars($row_d["Date_Donated"]) . "</td>";
+                                echo "<td>" . htmlspecialchars($row_d["Location"]) . "</td>";
+                                echo "<td><span class='status-badge {$badge_class}' id='badge-status-" . htmlspecialchars($row_d["Dontation_ID"]) . "'>{$status}</span></td>";
+                                
+                                // Manual dropdown update fallback
+                                echo "<td>
+                                        <form method='POST' action='index1.php' class='d-flex align-items-center gap-1'>
+                                            <input type='hidden' name='donation_id' value='" . htmlspecialchars($row_d["Dontation_ID"]) . "'>
+                                            <select name='status' class='form-select form-select-sm' style='max-width: 140px;' id='select-status-" . htmlspecialchars($row_d["Dontation_ID"]) . "'>
+                                                <option value='Pending Pickup'" . ($status === 'Pending Pickup' ? ' selected' : '') . ">Pending Pickup</option>
+                                                <option value='Collected'" . ($status === 'Collected' ? ' selected' : '') . ">Collected</option>
+                                                <option value='Delivered'" . ($status === 'Delivered' ? ' selected' : '') . ">Delivered</option>
+                                            </select>
+                                            <button type='submit' name='update_status' class='btn btn-outline-secondary btn-sm'>Update</button>
+                                        </form>
+                                      </td>";
+                                echo "</tr>";
                             }
-                            mysqli_stmt_close($stmt_commodities);
-                            $conn_table1->close();
-                            ?>
-                        </tbody>
-                    </table>
-                    <div class="d-flex flex-column flex-md-row justify-content-center align-items-center mt-4">
-                        <button onclick="printData1()" class="print-button btn btn-primary mb-3 me-md-3 w-100 w-md-auto">Print List of Commodities</button>
-                        <a href="commodity.php" class="add-commodity-link btn btn-success mb-3 w-100 w-md-auto">Add a New Commodity</a>
-                    </div>
-                    <div class="mt-4 text-center">
-                        <label class="d-block mb-3 text-muted">To delete a Commodity, kindly input the Commodity ID in the field below:</label>
-                        <form method="POST" action="delete.php" class="d-flex flex-column flex-md-row justify-content-center align-items-center delete-form">
-                            <input type="text" required name="id1" class="form-control me-md-2 mb-2 mb-md-0" placeholder="Commodity ID...">
-                            <button type="submit" name="delc1" class="delete-commodity-btn btn btn-danger">Delete Commodity</button>
-                        </form>
-                    </div>
-                </div>
+                        } else {
+                            echo "<tr><td colspan='8' class='text-center py-4 text-muted'>No donations recorded in system yet.</td></tr>";
+                        }
+                        ?>
+                    </tbody>
+                </table>
             </div>
         </div>
+
     </div>
-    <div class="container-fluid py-5">
-        <div class="container">
-            <div class="mx-auto text-center mb-5" style="max-width: 700px;">
-                <h1 class="display-5">List of Goods Donated</h1>
-                <p class="lead text-muted">Overview of all goods that have been donated, with status management.</p>
-            </div>
-            <div class="row g-5 justify-content-center">
-                <div class="col-lg-12 col-md-12">
-                    <table id="printTable2" class="table table-hover table-bordered">
-                        <thead>
-                            <tr>
-                                <th>Donation ID</th>
-                                <th>Commodity ID</th>
-                                <th>Donor ID</th>
-                                <th>Commodity Name</th>
-                                <th>Quantity Donated</th>
-                                <th>Date Donated</th>
-                                <th>Location</th>
-                                <th>Status</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php
-                            // Re-establish connection for the second table as the previous one was closed
-                            $conn_table2 = mysqli_connect("localhost", "root", "", "food_distribution");
-                            // Check connection
-                            if ($conn_table2->connect_error) {
-                                die("Connection failed: " . $conn_table2->connect_error);
-                            }
 
-                            // MODIFIED: Fetch data with JOIN to get Commodity Name and the original commodity's quantity string
-                            $sql_donations = "SELECT
-                                                gd.Dontation_ID,
-                                                gd.Commodity_ID,
-                                                gd.Donor_ID,
-                                                c.Commodity AS Commodity_Name,
-                                                gd.Quantity AS Donated_Quantity_Numeric,
-                                                c.Quantity AS Original_Commodity_Quantity_String,
-                                                gd.Date_Donated,
-                                                gd.Location,
-                                                gd.Status
-                                              FROM `goods_donated` gd
-                                              JOIN `commodity` c ON gd.Commodity_ID = c.Commodity_ID";
-                            $result_donations = $conn_table2->query($sql_donations);
-
-                            if ($result_donations->num_rows > 0) {
-                                while($row_donation = $result_donations->fetch_assoc()) {
-                                    // Extract unit from Original_Commodity_Quantity_String (e.g., "32 kg" -> "kg")
-                                    $unit = '';
-                                    if (preg_match('/^\d+(\.\d+)?\s*([a-zA-Z]+)?$/', $row_donation['Original_Commodity_Quantity_String'], $matches)) {
-                                        $unit = isset($matches[2]) ? $matches[2] : ''; // Capture the unit part
-                                    }
-
-                                    // Construct the display string for Quantity
-                                    $display_quantity = htmlspecialchars($row_donation["Donated_Quantity_Numeric"]);
-                                    if (!empty($unit)) {
-                                        $display_quantity .= " " . htmlspecialchars($unit);
-                                    }
-
-                                    echo "<tr>";
-                                    echo "<td>" . htmlspecialchars($row_donation["Dontation_ID"]) . "</td>";
-                                    echo "<td>" . htmlspecialchars($row_donation["Commodity_ID"]) . "</td>";
-                                    echo "<td>" . htmlspecialchars($row_donation["Donor_ID"]) . "</td>";
-                                    echo "<td>" . htmlspecialchars($row_donation["Commodity_Name"]) . "</td>";
-                                    echo "<td>" . $display_quantity . "</td>"; // Display the quantity with its unit
-                                    echo "<td>" . htmlspecialchars($row_donation["Date_Donated"]) . "</td>";
-                                    echo "<td>" . htmlspecialchars($row_donation["Location"]) . "</td>";
-                                    echo "<td>" . htmlspecialchars($row_donation["Status"]) . "</td>"; // Display the status
-
-                                    // Add the status update form
-                                    echo "<td>";
-                                    echo "<form method='POST' action='' class='d-flex align-items-center'>";
-                                    echo "<input type='hidden' name='donation_id' value='" . htmlspecialchars($row_donation["Dontation_ID"]) . "'>";
-                                    echo "<select name='status' class='form-select form-select-sm me-2'>";
-                                    echo "<option value='Pending Pickup'" . ($row_donation["Status"] == 'Pending Pickup' ? ' selected' : '') . ">Pending Pickup</option>";
-                                    echo "<option value='Collected'" . ($row_donation["Status"] == 'Collected' ? ' selected' : '') . ">Collected</option>";
-                                    echo "<option value='Delivered'" . ($row_donation["Status"] == 'Delivered' ? ' selected' : '') . ">Delivered</option>";
-                                    echo "</select>";
-                                    echo "<button type='submit' name='update_status' class='btn btn-sm btn-primary'>Update</button>";
-                                    echo "</form>";
-                                    echo "</td>";
-                                    echo "</tr>";
-                                }
-                            } else {
-                                echo "<tr><td colspan='9' class='text-center text-muted'>0 results - No goods donated yet.</td></tr>"; // colspan updated
-                            }
-                            $conn_table2->close();
-                            ?>
-                        </tbody>
-                    </table>
-                    <div class="d-flex justify-content-center mt-4">
-                        <button onclick="printData2()" class="print-button btn btn-primary mb-3">Print List of Goods Donated</button>
-                    </div>
+    <!-- Live QR Camera Scanner Modal -->
+    <div class="modal fade" id="qrScanModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-camera-fill text-success me-2"></i>Consignment QR Checkpoint</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" onclick="stopScannerModal()"></button>
                 </div>
-            </div>
-        </div>
-    </div>
-    <div class="container-fluid bg-footer bg-primary text-white mt-5">
-        <div class="container">
-            <div class="row gx-5">
-                <div class="col-lg-8 col-md-6">
-                    <div class="row gx-5">
-                        <div id="contact" class="col-lg-4 col-md-12 pt-5 mb-5">
-                            <h4 class="text-white mb-4">Get In Touch</h4>
-                            <div class="d-flex mb-2">
-                                <i class="bi bi-geo-alt text-white me-2"></i>
-                                <p class="text-white mb-0">Nairobi, KENYA.</p>
-                            </div>
-                            <div class="d-flex mb-2">
-                                <i class="bi bi-envelope-open text-white me-2"></i>
-                                <p class="text-white mb-0">donatefood@gmail.com</p>
-                            </div>
-                            <div class="d-flex mb-2">
-                                <i class="bi bi-telephone text-white me-2"></i>
-                                <p class="text-white mb-0">0745603353</p>
-                            </div>
-                            <div class="d-flex mt-4">
-                                <a class="btn btn-secondary btn-square rounded-circle me-2" href="https://x.com/"><i class="fab fa-twitter"></i></a>
-                                <a class="btn btn-secondary btn-square rounded-circle me-2" href="https://www.linkedin.com/"><i class="fab fa-linkedin-in"></i></a>
-                            </div>
+                <div class="modal-body p-4">
+                    
+                    <!-- Smart Auto-Progression Badge -->
+                    <div class="alert alert-light border small py-2 mb-3 d-flex align-items-center">
+                        <i class="bi bi-cpu text-success fs-5 me-2"></i>
+                        <div>
+                            <strong>Smart Auto-Progression Active:</strong><br>
+                            <span class="text-muted">1st scan logs <b>Collected</b> &bull; 2nd scan logs <b>Delivered</b></span>
                         </div>
-                        <div class="col-lg-4 col-md-12 pt-0 pt-lg-5 mb-5">
-                            <h4 class="text-white mb-4">Quick Links</h4>
-                            <div class="d-flex flex-column justify-content-start">
-                                <a class="text-white mb-2" href="index1.php"><i class="bi bi-arrow-right text-white me-2"></i>Home</a>
-                                <a class="text-white mb-2" href="login_page.html"><i class="bi bi-arrow-right text-white me-2"></i>Logout</a>
-                            </div>
+                    </div>
+
+                    <!-- Live Viewfinder Canvas -->
+                    <div id="modal-qr-reader" class="mb-3 p-3 text-center">
+                        <i class="bi bi-camera fs-2 text-muted d-block mb-1"></i>
+                        <span class="small text-muted">Click below to activate device camera</span>
+                    </div>
+
+                    <div id="scanAlert" class="alert py-2 small d-none mb-3"></div>
+
+                    <div class="d-flex gap-2">
+                        <button id="btnModalStartScan" class="btn btn-primary-custom w-100 py-2"><i class="bi bi-camera-fill me-1"></i> Start Camera</button>
+                        <button id="btnModalStopScan" class="btn btn-outline-secondary w-100 py-2 d-none" onclick="stopScannerModal()"><i class="bi bi-stop-circle me-1"></i> Stop Camera</button>
+                    </div>
+
+                    <!-- Manual Fallback Inside Scanner Modal -->
+                    <div class="mt-4 pt-3 border-top">
+                        <label class="small text-muted d-block mb-2">Manual Consignment Verification (Failsafe):</label>
+                        <div class="input-group">
+                            <input type="number" id="manualConsignmentId" class="form-control form-control-sm" placeholder="Consignment ID (e.g. 43)">
+                            <button class="btn btn-dark btn-sm px-3" onclick="submitManualConsignment()">Verify ID</button>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-    <div class="container-fluid bg-dark text-white py-4">
+
+    <!-- Footer -->
+    <footer class="site-footer">
         <div class="container text-center">
-           <p class="mb-0">&copy; <a class="text-secondary fw-bold" href="index1.php">Food Donation System</a>. All Rights Reserved.</p>
+            <p class="mb-0 small text-white-50">&copy; Food Aid Traceability System. All Rights Reserved.</p>
         </div>
-    </div>
-    <a href="#" class="btn btn-secondary py-3 fs-4 back-to-top"><i class="bi bi-arrow-up"></i></a>
+    </footer>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('commodity') === 'success') {
+                const commAlert = document.getElementById('commodity-alert');
+                if (commAlert) commAlert.classList.remove('d-none');
+            }
+            if (urlParams.get('status_updated') === 'success') {
+                const statAlert = document.getElementById('status-alert');
+                if (statAlert) statAlert.classList.remove('d-none');
+            }
+        });
 
-    <script src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="lib/easing/easing.min.js"></script>
-    <script src="lib/waypoints/waypoints.min.js"></script>
-    <script src="lib/counterup/counterup.min.js"></script>
-    <script src="lib/owlcarousel/owl.carousel.min.js"></script>
+        // Synthesizer Audio Feedback (Zero external audio file dependencies)
+        function playBeep(isSuccess) {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
 
-    <script src="js/main.js"></script>
-
-    <script type="text/javascript">
-        function printData1() {
-            var divToPrint = document.getElementById("printTable1");
-            newWin = window.open("");
-            newWin.document.write('<html><head><title>Commodities List</title>');
-            newWin.document.write('<link href="css/bootstrap.min.css" rel="stylesheet">'); // Include Bootstrap for print styles
-            newWin.document.write('<style>');
-            newWin.document.write(`
-                body { font-family: 'Open Sans', sans-serif; margin: 20px; }
-                h1 { text-align: center; margin-bottom: 20px; color: #343a40; }
-                table { width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; background-color: #fff; box-shadow: none; border-radius: 0; }
-                th, tr, td { border: 1px solid #dee2e6; padding: 12px 15px; text-align: left; }
-                th { background-color: #f8f9fa; font-weight: 600; color: #343a40; border-bottom: 2px solid #dee2e6; }
-                tr:nth-child(even) { background-color: #f2f2f2; }
-            `);
-            newWin.document.write('</style></head><body>');
-            newWin.document.write('<h1>List of Commodities for ' + <?php echo json_encode($admin_location); ?> + '</h1>'); // Add a title for print
-            newWin.document.write(divToPrint.outerHTML);
-            newWin.document.write('</body></html>');
-            newWin.print();
-            newWin.close();
+                if (isSuccess) {
+                    osc.type = "sine";
+                    osc.frequency.setValueAtTime(880, ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.15);
+                    gain.gain.setValueAtTime(0.2, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+                    osc.start(ctx.currentTime);
+                    osc.stop(ctx.currentTime + 0.2);
+                } else {
+                    osc.type = "sawtooth";
+                    osc.frequency.setValueAtTime(220, ctx.currentTime);
+                    gain.gain.setValueAtTime(0.2, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+                    osc.start(ctx.currentTime);
+                    osc.stop(ctx.currentTime + 0.3);
+                }
+            } catch(e) {}
         }
 
-        function printData2() {
-            var divToPrint = document.getElementById("printTable2");
-            newWin = window.open("");
-            newWin.document.write('<html><head><title>Goods Donated List</title>');
-            newWin.document.write('<link href="css/bootstrap.min.css" rel="stylesheet">'); // Include Bootstrap for print styles
-            newWin.document.write('<style>');
-            newWin.document.write(`
-                body { font-family: 'Open Sans', sans-serif; margin: 20px; }
-                h1 { text-align: center; margin-bottom: 20px; color: #343a40; }
-                table { width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; background-color: #fff; box-shadow: none; border-radius: 0; }
-                th, tr, td { border: 1px solid #dee2e6; padding: 12px 15px; text-align: left; }
-                th { background-color: #f8f9fa; font-weight: 600; color: #343a40; border-bottom: 2px solid #dee2e6; }
-                tr:nth-child(even) { background-color: #f2f2f2; }
-            `);
-            newWin.document.write('</style></head><body>');
-            newWin.document.write('<h1>List of Goods Donated</h1>'); // Add a title for print
-            newWin.document.write(divToPrint.outerHTML);
-            newWin.document.write('</body></html>');
-            newWin.print();
-            newWin.close();
+        // Camera QR Scanner Modal Handling
+        let html5QrScanner = null;
+        let isProcessingScan = false;
+
+        const btnStart = document.getElementById('btnModalStartScan');
+        const btnStop = document.getElementById('btnModalStopScan');
+        const scanAlert = document.getElementById('scanAlert');
+
+        btnStart.addEventListener('click', startScannerModal);
+
+        function startScannerModal() {
+            html5QrScanner = new Html5Qrcode("modal-qr-reader");
+            Html5Qrcode.getCameras().then(cameras => {
+                if (cameras && cameras.length) {
+                    const cameraId = cameras[cameras.length - 1].id;
+                    html5QrScanner.start(
+                        cameraId,
+                        { fps: 10, qrbox: { width: 220, height: 220 } },
+                        (decodedText) => handleQrDecoded(decodedText),
+                        (error) => {}
+                    ).then(() => {
+                        btnStart.classList.add('d-none');
+                        btnStop.classList.remove('d-none');
+                        showScanAlert('Camera active. Hold donor QR pass steady in front of lens.', 'info');
+                    });
+                } else {
+                    showScanAlert('No camera found on this device.', 'danger');
+                }
+            }).catch(err => {
+                showScanAlert('Camera permission error: ' + err, 'danger');
+            });
+        }
+
+        function stopScannerModal() {
+            if (html5QrScanner) {
+                html5QrScanner.stop().then(() => {
+                    html5QrScanner.clear();
+                    btnStart.classList.remove('d-none');
+                    btnStop.classList.add('d-none');
+                }).catch(() => {});
+            }
+        }
+
+        function handleQrDecoded(decodedText) {
+            if (isProcessingScan) return;
+            isProcessingScan = true;
+            processConsignmentCheckpoint(decodedText);
+        }
+
+        function submitManualConsignment() {
+            const val = document.getElementById('manualConsignmentId').value.trim();
+            if (!val) {
+                alert('Please enter a valid Consignment ID.');
+                return;
+            }
+            processConsignmentCheckpoint(val);
+        }
+
+        function processConsignmentCheckpoint(token) {
+            showScanAlert('Inspecting consignment state and progressing milestone...', 'info');
+
+            const fd = new FormData();
+            fd.append('action', 'qr_scan_update');
+            fd.append('qr_token', token);
+            fd.append('location', <?php echo json_encode($admin_location); ?>);
+
+            fetch('update_u.php', {
+                method: 'POST',
+                body: fd
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    playBeep(true);
+                    showScanAlert(`Success! Consignment #${data.consignment.id} (${data.consignment.item}): ${data.consignment.old_status} &rarr; <strong>${data.consignment.new_status}</strong>`, 'success');
+                    
+                    // Update table in real time without reloading
+                    const badge = document.getElementById(`badge-status-${data.consignment.id}`);
+                    const select = document.getElementById(`select-status-${data.consignment.id}`);
+                    if (badge) {
+                        badge.textContent = data.consignment.new_status;
+                        badge.className = 'status-badge ' + (data.consignment.new_status === 'Delivered' ? 'status-delivered' : 'status-collected');
+                    }
+                    if (select) {
+                        select.value = data.consignment.new_status;
+                    }
+                } else if (data.already_fulfilled) {
+                    playBeep(false);
+                    showScanAlert(`<i class="bi bi-shield-slash-fill me-1"></i> ${data.message}`, 'warning');
+                } else {
+                    playBeep(false);
+                    showScanAlert(data.message, 'danger');
+                }
+                setTimeout(() => { isProcessingScan = false; }, 2500); // 2.5s cooldown
+            })
+            .catch(err => {
+                playBeep(false);
+                showScanAlert('Network error during scan verification: ' + err, 'danger');
+                isProcessingScan = false;
+            });
+        }
+
+        function showScanAlert(msg, type) {
+            scanAlert.className = `alert alert-${type} py-2 small mb-3`;
+            scanAlert.innerHTML = msg;
+            scanAlert.classList.remove('d-none');
+        }
+
+        // Table Printer
+        function printTableData(tableId, title) {
+            const divToPrint = document.getElementById(tableId);
+            const win = window.open("", "", "height=700,width=900");
+            win.document.write(`<html><head><title>${title}</title>`);
+            win.document.write('<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">');
+            win.document.write('<style>table { width: 100%; border-collapse: collapse; margin-top: 20px; } th, td { border: 1px solid #ddd; padding: 8px; font-size: 13px; } th { background-color: #16a34a; color: white; }</style>');
+            win.document.write(`</head><body><h3 style="text-align:center;margin-top:20px;">${title}</h3>`);
+            win.document.write(divToPrint.outerHTML);
+            win.document.write('</body></html>');
+            win.document.close();
+            win.print();
+            win.close();
         }
     </script>
 </body>

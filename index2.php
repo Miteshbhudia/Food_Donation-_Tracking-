@@ -1,614 +1,537 @@
 <?php
-// Enable error reporting for debugging (REMOVE THIS ON PRODUCTION)
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-
-// Ensure dbconnection.inc.php exists and correctly establishes $conn
-require_once 'dbconnection.inc.php';
 session_start();
+require_once 'dbconnection.inc.php';
 
-// Redirect to login if email is not set in session
-if (!isset($_SESSION['Email'])) {
-    header("Location: login.html");
-    exit(); // Always add exit after a header redirect
-} else {
-    $email = $_SESSION['Email'];
-
-    // Query the database to get donor information, including Fullname
-    $query = mysqli_query($conn, "SELECT Fullname, Donor_ID FROM `donors` WHERE `Email_Address`='$email'");
-
-    // Check if the query was successful and a row was returned
-    if ($query && mysqli_num_rows($query) > 0) {
-        $row = mysqli_fetch_array($query);
-        // Assign Fullname and Donor_ID from the database to session variables
-        $_SESSION['Fullname'] = $row['Fullname'];
-        $first = $row['Fullname']; // Assign to $first for use in the HTML
-        $donor_id_from_db = $row['Donor_ID'];
-    } else {
-        // If no donor found with that email, clear session and redirect to login
-        session_unset();
-        session_destroy();
-        header("Location: login.html");
-        exit();
-    }
+// Check donor session
+$email = $_SESSION['Email'] ?? $_SESSION['Email1'] ?? null;
+if (!$email) {
+    header("Location: login_page.html");
+    exit();
 }
-?>
 
+// Fetch authenticated donor details safely
+$stmt = $conn->prepare("SELECT Fullname, Donor_ID FROM `donors` WHERE `Email_Address` = ?");
+$stmt->bind_param("s", $email);
+$stmt->execute();
+$donor_res = $stmt->get_result();
+
+if ($donor_res && $donor_res->num_rows > 0) {
+    $donor_row = $donor_res->fetch_assoc();
+    $_SESSION['Fullname'] = $donor_row['Fullname'];
+    $first = $donor_row['Fullname'];
+    $donor_id_from_db = $donor_row['Donor_ID'];
+} else {
+    session_unset();
+    session_destroy();
+    header("Location: login_page.html");
+    exit();
+}
+$stmt->close();
+?>
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
     <meta charset="utf-8">
-    <title>Food Distribution System - Donor Homepage</title>
+    <title>Donor Portal - Food Aid Traceability System</title>
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
-    <meta content="Free HTML Templates" name="keywords">
-    <meta content="Free HTML Templates" name="description">
 
     <link href="img/favicon.ico" rel="icon">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
-    <link rel="preconnect" href="https://fonts.gstatic.com">
-    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600&family=Roboto:wght@500;700&display=swap" rel="stylesheet">
-
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.4.1/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 
-    <link href="lib/owlcarousel/assets/owl.carousel.min.css" rel="stylesheet">
-
-    <link href="css/bootstrap.min.css" rel="stylesheet">
+    <!-- Client-side QR Code Generator -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
     <style>
         :root {
-            --primary: #8BC34A; /* Retaining your green color */
-            --secondary: #FFC107; /* A complementary accent color, you can adjust this */
-            --light: #F8F9FA;
-            --dark: #212529;
+            --primary: #16a34a;
+            --primary-hover: #15803d;
+            --primary-subtle: #dcfce7;
+            --dark: #0f172a;
+            --gray-body: #64748b;
+            --bg-light: #f8fafc;
+            --card-border: #e2e8f0;
         }
 
         body {
-            font-family: 'Open Sans', sans-serif;
-            background-color: var(--light);
-        }
-
-        .navbar-brand h1 span {
-            color: var(--secondary) !important; /* Keep secondary for the "Food" part */
-        }
-
-        .btn-primary, .bg-primary {
-            background-color: var(--primary) !important;
-            border-color: var(--primary) !important;
-            color: #fff !important;
-        }
-
-        .btn-secondary, .bg-secondary {
-            background-color: var(--secondary) !important;
-            border-color: var(--secondary) !important;
-            color: var(--dark) !important; /* Ensure good contrast */
-        }
-
-        .text-primary {
-            color: var(--primary) !important;
-        }
-
-        .text-secondary {
-            color: var(--secondary) !important;
-        }
-
-        .navbar-dark .navbar-nav .nav-link.active,
-        .navbar-dark .navbar-nav .nav-link:hover {
-            color: #FFFFFF !important;
-        }
-
-        .form-control:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 0.25rem rgba(139, 195, 74, 0.25); /* Light primary shadow */
-        }
-
-        .table-primary thead th {
-            background-color: var(--primary);
-            color: white;
-        }
-
-        .table-striped tbody tr:nth-of-type(odd) {
-            background-color: rgba(0, 0, 0, 0.05);
-        }
-
-        .modal-header {
-            background-color: var(--primary);
-            color: white;
-        }
-        .modal-header .btn-close {
-            filter: invert(1); /* Makes the close button white */
-        }
-
-        .back-to-top {
-            background-color: var(--secondary);
-            color: var(--dark) !important;
-        }
-        .back-to-top:hover {
-            background-color: var(--primary);
-            color: white !important;
-        }
-
-        /* Hero Section Styling */
-        .hero-header {
-            background: linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)), url('https://images.pexels.com/photos/6647017/pexels-photo-6647017.jpeg') no-repeat center;
-            background-size: cover;
-            background-position: center 25%;
-            min-height: 400px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            color: white;
-        }
-
-        .hero-header h1 {
-            font-size: 3.5rem;
-            font-weight: 700;
-            margin-bottom: 20px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
-            color: white;
-        }
-
-        .hero-header p {
-            font-size: 1.25rem;
-            margin-bottom: 30px;
-        }
-
-        /* Section Spacing */
-        .container-fluid.py-5 {
-            padding-top: 6rem !important;
-            padding-bottom: 6rem !important;
-        }
-
-        /* Card-like appearance for sections */
-        .section-card {
-            background-color: #fff;
-            border-radius: 10px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-            padding: 3rem;
-            margin-bottom: 2rem;
-        }
-
-        /* Print Button Styling */
-        .print-button {
-            display: block;
-            width: fit-content;
-            margin: 20px auto;
-            padding: 10px 20px;
-            background-color: var(--secondary);
+            font-family: 'Poppins', sans-serif;
+            background-color: var(--bg-light);
             color: var(--dark);
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: background-color 0.3s ease;
+            min-height: 100vh;
         }
 
-        .print-button:hover {
+        .navbar {
+            background-color: #ffffff;
+            border-bottom: 1px solid var(--card-border);
+        }
+        .brand-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+            text-decoration: none;
+            letter-spacing: -0.5px;
+        }
+        .brand-title span { color: var(--dark); }
+
+        .hero-banner {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #064e3b 100%);
+            color: #ffffff;
+            padding: 3.5rem 0;
+            margin-bottom: 3rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .section-card {
+            background: #ffffff;
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            box-shadow: 0 8px 25px rgba(15, 23, 42, 0.04);
+            padding: 2.25rem;
+            margin-bottom: 2.5rem;
+        }
+
+        .table thead th {
+            background-color: #f1f5f9;
+            color: #334155;
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid var(--card-border);
+            padding: 0.9rem 1rem;
+        }
+
+        .table tbody td {
+            vertical-align: middle;
+            font-size: 0.92rem;
+            padding: 0.9rem 1rem;
+            color: #1e293b;
+        }
+
+        .btn-primary-custom {
             background-color: var(--primary);
-            color: white;
+            color: #ffffff;
+            border: none;
+            font-weight: 600;
+            border-radius: 8px;
+            padding: 0.5rem 1.1rem;
+            transition: all 0.2s;
+        }
+        .btn-primary-custom:hover {
+            background-color: var(--primary-hover);
+            color: #ffffff;
+            transform: translateY(-1px);
         }
 
-        /* Style for toast messages */
-        .toast {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 1050;
-            min-width: 250px;
+        .btn-print {
+            background-color: #ffffff;
+            border: 1px solid var(--card-border);
+            color: var(--gray-body);
+            font-weight: 600;
+            font-size: 0.875rem;
+            padding: 0.55rem 1.25rem;
+            border-radius: 8px;
+            transition: all 0.2s;
         }
-        .toast-header {
-            border-bottom: 1px solid rgba(0,0,0,.05);
-        }
-        .toast-body {
-            padding: 1rem;
+        .btn-print:hover {
+            background-color: #f1f5f9;
+            color: var(--dark);
         }
 
+        /* Status Badges */
+        .status-badge {
+            font-size: 0.775rem;
+            font-weight: 600;
+            padding: 0.35rem 0.75rem;
+            border-radius: 50px;
+        }
+        .status-pending { background-color: #fef3c7; color: #92400e; }
+        .status-collected { background-color: #e0f2fe; color: #0369a1; }
+        .status-delivered { background-color: #dcfce7; color: #166534; }
+
+        /* Consignment Pass Modal */
+        .consignment-pass {
+            border: 2px dashed #cbd5e1;
+            border-radius: 12px;
+            padding: 1.5rem;
+            background-color: #f8fafc;
+            text-align: center;
+        }
+        #qrcode {
+            display: flex;
+            justify-content: center;
+            margin: 1.25rem 0;
+        }
+
+        /* Footer */
+        .site-footer {
+            background-color: #0b1120;
+            color: #94a3b8;
+            font-size: 0.9rem;
+            padding: 3.5rem 0 1.5rem 0;
+            margin-top: 5rem;
+        }
+        .site-footer a { color: #cbd5e1; text-decoration: none; }
+        .site-footer a:hover { color: var(--primary); }
     </style>
-    <link href="css/style.css" rel="stylesheet">
 </head>
 
 <body>
-    <div class="container-fluid px-5 d-none d-lg-block">
-        <div class="row gx-5 py-3 align-items-center">
-            <div class="col-lg-12 text-center"> <div class="d-flex align-items-center justify-content-center">
-                    <a href="index2.php" class="navbar-brand m-0"> <h1 class="display-4 text-primary"><span class="text-secondary">Food</span> Donation</h1>
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
-    <nav class="navbar navbar-expand-lg bg-primary navbar-dark shadow-sm py-3 py-lg-0 px-3 px-lg-5">
-        <a href="index2.php" class="navbar-brand d-flex d-lg-none">
-            <h1 class="m-0 display-4 text-secondary"><span class="text-white">Food</span> Donation</h1>
-        </a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="navbarCollapse">
-            <div class="navbar-nav mx-auto py-0">
-                <a href="index2.php" class="nav-item nav-link active">Home</a>
-                <a href="login_page.html" class="nav-item nav-link">Logout</a>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg sticky-top">
+        <div class="container">
+            <a href="index2.php" class="brand-title">Food<span>Trace</span> <span class="badge bg-success-subtle text-success fs-6 fw-semibold ms-2">Donor</span></a>
+            <div class="ms-auto d-flex align-items-center gap-3">
+                <span class="small text-muted d-none d-md-inline"><i class="bi bi-person-circle me-1"></i><?php echo htmlspecialchars($first); ?></span>
+                <a href="homepage.html" class="btn btn-outline-secondary btn-sm">Home</a>
+                <a href="logout.php" class="btn btn-outline-danger btn-sm"><i class="bi bi-box-arrow-right me-1"></i>Logout</a>
             </div>
         </div>
     </nav>
-    <div class="container-fluid hero-header mb-5">
+
+    <!-- Hero Greeting -->
+    <header class="hero-banner">
         <div class="container">
-            <div class="row justify-content-center">
-                <div class="col-lg-10">
-                    <h1>Welcome Back, <?php echo htmlspecialchars($first); ?>!</h1>
-                    <p>Your contributions make a significant difference. Explore donation opportunities and manage your profile here.</p>
+            <div class="row align-items-center">
+                <div class="col-lg-8">
+                    <span class="badge bg-success mb-2 px-3 py-2 fw-semibold">Authenticated Donor</span>
+                    <h2 class="fw-bold mb-2">Welcome Back, <?php echo htmlspecialchars($first); ?></h2>
+                    <p class="text-white-50 mb-0">Browse real-time sub-county deficits, submit pledges, and track distribution through verifiable QR consignment tokens.</p>
                 </div>
             </div>
         </div>
-    </div>
+    </header>
 
-    <div class="container-fluid py-5">
-        <div class="container section-card">
-            <div class="mx-auto text-center mb-5" style="max-width: 700px;">
-                <h6 class="text-primary text-uppercase">Opportunities to Donate</h6>
-                <h1 class="display-5">Available Commodities for Donation</h1>
+    <div class="container">
+        
+        <!-- Live Toast Feedbacks -->
+        <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1050">
+            <div id="liveToast" class="toast align-items-center text-bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="d-flex">
+                    <div class="toast-body"><i class="bi bi-check-circle-fill me-2"></i>Donation pledge submitted successfully! Your consignment QR pass is ready below.</div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
             </div>
-            <div class="row g-5">
-                <div class="col-12">
-                    <div class="table-responsive">
-                        <table id="printTable1" class="table table-striped table-hover">
-                            <thead class="table-primary">
-                                <tr>
-                                    <th scope="col">Commodity ID</th>
-                                    <th scope="col">Area Administrator</th>
-                                    <th scope="col">Location</th>
-                                    <th scope="col">Commodity</th>
-                                    <th scope="col">Quantity</th>
-                                    <th scope="col">Date Added</th>
-                                    <th scope="col">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php
-                                // Establish a new connection for this section to avoid conflicts if dbconnection.inc.php has issues
-                                // Re-using $conn from dbconnection.inc.php is preferred if the connection is reliable.
-                                // For robustness, if dbconnection.inc.php has issues, separate connections might be used,
-                                // but typically you'd fix dbconnection.inc.php instead.
-                                // Keeping it simple and using the already established $conn here.
+        </div>
 
-                                // Modified SQL query for commodities to ensure the join is correct
-                                $sql = "SELECT
-                                            c.Commodity_ID,
-                                            a.Fullname AS Area_Administrator_Name,
-                                            a.Location AS AdminLocation,
-                                            c.Commodity,
-                                            c.Quantity,
-                                            c.Date_Added
-                                        FROM
-                                            `commodity` c
-                                        JOIN
-                                            `admin` a ON c.Area_Administrator = a.Administrator_ID";
+        <!-- Section 1: Available Needs / Commodities -->
+        <div class="section-card">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-2">
+                <div>
+                    <h4 class="fw-bold mb-1">Declared Community Needs</h4>
+                    <p class="text-muted small mb-0">Sub-county commodities requested by Area Administrators</p>
+                </div>
+                <button onclick="printTableData('printTable1', 'Declared Community Needs')" class="btn btn-print"><i class="bi bi-printer me-1"></i> Print Needs List</button>
+            </div>
 
-                                $result = $conn->query($sql); // Use $conn from dbconnection.inc.php
+            <div class="table-responsive">
+                <table id="printTable1" class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Commodity ID</th>
+                            <th>Area Administrator</th>
+                            <th>Location</th>
+                            <th>Commodity</th>
+                            <th>Quantity Needed</th>
+                            <th>Date Added</th>
+                            <th class="text-center">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php
+                        $sql_commodities = "SELECT c.Commodity_ID, a.Fullname AS AdminName, a.Location AS AdminLocation, c.Commodity, c.Quantity, c.Date_Added
+                                            FROM `commodity` c
+                                            JOIN `admin` a ON c.Area_Administrator = a.Administrator_ID";
+                        $res_commodities = $conn->query($sql_commodities);
 
-                                if ($result->num_rows > 0) {
-                                    while ($row_commodity = $result->fetch_assoc()) {
-                                        // ********* PHP LOGIC TO PARSE QUANTITY AND UNIT FOR MODAL *********
-                                        $commodity_quantity_full = htmlspecialchars($row_commodity["Quantity"]);
-                                        $numeric_quantity = '';
-                                        $unit = '';
-
-                                        // Use regex to extract number and potential unit (captured in group 3)
-                                        // This regex handles cases like "32", "32.5", "32kg", "32 kg", "32.5 kg"
-                                        if (preg_match('/^(\d+(\.\d+)?)\s*([a-zA-Z]+)?$/', $commodity_quantity_full, $matches)) {
-                                            $numeric_quantity = $matches[1]; // The number part (e.g., "32" or "32.5")
-                                            $unit = isset($matches[3]) ? $matches[3] : ''; // The unit part (e.g., "kg"), if exists
-                                        } else {
-                                            // Fallback if regex doesn't match, assume it's just the number and no unit
-                                            $numeric_quantity = $commodity_quantity_full;
-                                            $unit = '';
-                                        }
-                                        // ********* END PHP LOGIC *********
-
-                                        echo "<tr>";
-                                        echo "<td>" . htmlspecialchars($row_commodity["Commodity_ID"]) . "</td>";
-                                        echo "<td>" . htmlspecialchars($row_commodity["Area_Administrator_Name"]) . "</td>";
-                                        echo "<td>" . htmlspecialchars($row_commodity["AdminLocation"]) . "</td>";
-                                        echo "<td>" . htmlspecialchars($row_commodity["Commodity"]) . "</td>";
-                                        echo "<td>" . $commodity_quantity_full . "</td>"; // Display full quantity (e.g., "32 kg") in this table
-                                        echo "<td>" . htmlspecialchars($row_commodity["Date_Added"]) . "</td>";
-
-                                        // Pass parsed quantity and unit as data attributes to the button
-                                        echo "<td><button type='button' class='btn btn-primary btn-sm' data-bs-toggle='modal' data-bs-target='#donateModal'
-                                                data-commodity-id='" . htmlspecialchars($row_commodity["Commodity_ID"]) . "'
-                                                data-commodity-name='" . htmlspecialchars($row_commodity["Commodity"]) . "'
-                                                data-commodity-quantity-numeric='" . htmlspecialchars($numeric_quantity) . "'
-                                                data-commodity-unit='" . htmlspecialchars($unit) . "'>Donate Now</button></td>";
-                                        echo "</tr>";
-                                    }
+                        if ($res_commodities && $res_commodities->num_rows > 0) {
+                            while ($row_c = $res_commodities->fetch_assoc()) {
+                                $full_qty = htmlspecialchars($row_c["Quantity"]);
+                                $num_qty = '';
+                                $unit = '';
+                                if (preg_match('/^(\d+(\.\d+)?)\s*([a-zA-Z]+)?$/', $full_qty, $matches)) {
+                                    $num_qty = $matches[1];
+                                    $unit = $matches[3] ?? '';
                                 } else {
-                                    echo "<tr><td colspan='7' class='text-center'>No commodities available for donation at the moment.</td></tr>";
+                                    $num_qty = $full_qty;
                                 }
-                                ?>
-                            </tbody>
-                        </table>
-                    </div>
-                    <button onclick="printData1()" class="print-button">Print the List of Commodities</button>
-                </div>
+
+                                echo "<tr>";
+                                echo "<td><span class='badge bg-light text-dark border'>#" . htmlspecialchars($row_c["Commodity_ID"]) . "</span></td>";
+                                echo "<td>" . htmlspecialchars($row_c["AdminName"]) . "</td>";
+                                echo "<td><i class='bi bi-geo-alt text-success me-1'></i>" . htmlspecialchars($row_c["AdminLocation"]) . "</td>";
+                                echo "<td class='fw-semibold'>" . htmlspecialchars($row_c["Commodity"]) . "</td>";
+                                echo "<td><span class='badge bg-secondary-subtle text-secondary-emphasis'>" . $full_qty . "</span></td>";
+                                echo "<td class='text-muted small'>" . htmlspecialchars($row_c["Date_Added"]) . "</td>";
+                                echo "<td class='text-center'>
+                                        <button type='button' class='btn btn-primary-custom btn-sm' data-bs-toggle='modal' data-bs-target='#donateModal'
+                                            data-commodity-id='" . htmlspecialchars($row_c["Commodity_ID"]) . "'
+                                            data-commodity-name='" . htmlspecialchars($row_c["Commodity"]) . "'
+                                            data-commodity-quantity-numeric='" . htmlspecialchars($num_qty) . "'
+                                            data-commodity-unit='" . htmlspecialchars($unit) . "'>Pledge Aid</button>
+                                      </td>";
+                                echo "</tr>";
+                            }
+                        } else {
+                            echo "<tr><td colspan='7' class='text-center py-4 text-muted'>No commodity requests currently registered in the system.</td></tr>";
+                        }
+                        ?>
+                    </tbody>
+                </table>
             </div>
         </div>
+
+        <!-- Section 2: Donation History & QR Pass Generator -->
+        <div class="section-card">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-2">
+                <div>
+                    <h4 class="fw-bold mb-1">My Consignment History & QR Passes</h4>
+                    <p class="text-muted small mb-0">Track and generate verifiable handover tokens for field distribution hubs</p>
+                </div>
+                <button onclick="printTableData('printTable2', 'My Donation History')" class="btn btn-print"><i class="bi bi-printer me-1"></i> Print History</button>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover" id="printTable2">
+                    <thead>
+                        <tr>
+                            <th>Consignment ID</th>
+                            <th>Commodity</th>
+                            <th>Quantity Pledged</th>
+                            <th>Pledge Date</th>
+                            <th>Intake Hub</th>
+                            <th>Status</th>
+                            <th class="text-center">Verifiable Token</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php
+                        $stmt_donations = $conn->prepare("
+                            SELECT d.Dontation_ID, c.Commodity, c.Quantity AS Commodity_Full_Qty, d.Quantity AS Donated_Qty, d.Date_Donated, d.Location, d.Status
+                            FROM `goods_donated` d
+                            JOIN `commodity` c ON d.Commodity_ID = c.Commodity_ID
+                            WHERE d.Donor_ID = ?
+                            ORDER BY d.Dontation_ID DESC
+                        ");
+                        $stmt_donations->bind_param("i", $donor_id_from_db);
+                        $stmt_donations->execute();
+                        $res_donations = $stmt_donations->get_result();
+
+                        if ($res_donations && $res_donations->num_rows > 0) {
+                            while ($row_d = $res_donations->fetch_assoc()) {
+                                $unit_display = '';
+                                $parts = explode(' ', $row_d["Commodity_Full_Qty"]);
+                                if (count($parts) > 1 && !is_numeric(end($parts))) {
+                                    $unit_display = end($parts);
+                                }
+
+                                $status = $row_d["Status"];
+                                $badge_class = "status-pending";
+                                if ($status === "Collected") $badge_class = "status-collected";
+                                if ($status === "Delivered") $badge_class = "status-delivered";
+
+                                echo "<tr>";
+                                echo "<td><strong>#" . htmlspecialchars($row_d["Dontation_ID"]) . "</strong></td>";
+                                echo "<td class='fw-semibold'>" . htmlspecialchars($row_d["Commodity"]) . "</td>";
+                                echo "<td>" . htmlspecialchars($row_d["Donated_Qty"]) . " " . htmlspecialchars($unit_display) . "</td>";
+                                echo "<td class='text-muted small'>" . htmlspecialchars($row_d["Date_Donated"]) . "</td>";
+                                echo "<td>" . htmlspecialchars($row_d["Location"]) . "</td>";
+                                echo "<td><span class='status-badge {$badge_class}'>{$status}</span></td>";
+                                echo "<td class='text-center'>
+                                        <button class='btn btn-outline-success btn-sm' onclick='openQrModal(" . json_encode($row_d) . ", \"{$unit_display}\")'>
+                                            <i class='bi bi-qr-code-scan me-1'></i> View Pass
+                                        </button>
+                                      </td>";
+                                echo "</tr>";
+                            }
+                        } else {
+                            echo "<tr><td colspan='7' class='text-center py-4 text-muted'>You have not made any donations yet. Click 'Pledge Aid' above to submit your first donation.</td></tr>";
+                        }
+                        $stmt_donations->close();
+                        ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
     </div>
 
-    <div class="modal fade" id="donateModal" tabindex="-1" aria-labelledby="donateModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="donateModalLabel">Make a Donation</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    <!-- Pledge Modal -->
+    <div class="modal fade" id="donateModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title fw-bold" id="donateModalLabel">Pledge Aid Consignment</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body">
+                <div class="modal-body p-4">
                     <form method="POST" action="insertion.inc.php">
                         <input type="hidden" id="commodity-id" name="commodity_id">
                         <input type="hidden" name="donor_id" value="<?php echo htmlspecialchars($donor_id_from_db); ?>">
+                        
                         <div class="mb-3">
-                            <label for="commodity-name" class="form-label">Commodity</label>
+                            <label class="form-label small fw-semibold">Requested Commodity</label>
                             <input type="text" class="form-control" id="commodity-name" readonly>
                         </div>
                         <div class="mb-3">
-                            <label for="quantity" class="form-label">Quantity</label>
-                            <div class="input-group"> <input type="number" class="form-control" id="quantity" name="quantity" min="1" required>
-                                <span class="input-group-text" id="quantity-unit"></span> </div>
+                            <label class="form-label small fw-semibold">Pledge Quantity</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="quantity" name="quantity" min="1" required>
+                                <span class="input-group-text" id="quantity-unit"></span>
+                            </div>
                         </div>
                         <div class="mb-3">
-                            <label for="location" class="form-label">Your Location</label>
-                            <input type="text" class="form-control" id="location" name="location" placeholder="e.g., Nairobi County, Mombasa County, Kisumu County" required>
-                            <div class="form-text">Please specify your county or area to help us coordinate the donation pickup.</div>
+                            <label class="form-label small fw-semibold">Distribution / Drop-off Hub</label>
+                            <input type="text" class="form-control" id="location" name="location" placeholder="e.g. Nairobi Central Hub" required>
                         </div>
                         <input type="hidden" id="today" required name="date">
-                        <button type="submit" name="add_donation" class="btn btn-primary w-100">Submit Donation</button>
+                        <button type="submit" name="add_donation" class="btn btn-primary-custom w-100 py-2 mt-2">Submit Consignment Pledge</button>
                     </form>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
-        <div id="liveToast" class="toast hide bg-success text-white" role="alert" aria-live="assertive" aria-atomic="true">
-            <div class="toast-header bg-success text-white">
-                <strong class="me-auto text-white"><i class="fas fa-check-circle me-2"></i>Donation Status</strong>
-            </div>
-            <div class="toast-body">
-                Thank you! Your donation has been recorded successfully.
-            </div>
-        </div>
-    </div>
-    <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
-        <div id="errorToast" class="toast hide bg-danger text-white" role="alert" aria-live="assertive" aria-atomic="true">
-            <div class="toast-header bg-danger text-white">
-                <strong class="me-auto text-white"><i class="fas fa-exclamation-circle me-2"></i>Donation Error</strong>
-            </div>
-            <div class="toast-body">
-                Oops! There was an issue processing your donation. Please try again.
-            </div>
-        </div>
-    </div>
-
-    <div class="container-fluid py-5">
-        <div class="container section-card">
-            <div class="mx-auto text-center mb-5" style="max-width: 500px;">
-                <h6 class="text-primary text-uppercase">Your Contribution</h6>
-                <h1 class="display-5">My Donation History</h1>
-            </div>
-            <div class="row g-5">
-                <div class="col-12">
-                    <div class="table-responsive">
-                        <table class="table table-striped table-hover" id="printTable2">
-                            <thead class="table-primary">
-                                <tr>
-                                    <th scope="col">Donation ID</th>
-                                    <th scope="col">Commodity</th>
-                                    <th scope="col">Quantity</th>
-                                    <th scope="col">Date Donated</th>
-                                    <th scope="col">Location</th>
-                                    <th scope="col">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php
-                                // Re-using $conn from dbconnection.inc.php
-                                // SQL query: Join `goods_donated` with `commodity` to get the Quantity with unit
-                                $sql = "SELECT
-                                            d.Dontation_ID,
-                                            c.Commodity,
-                                            c.Quantity AS Commodity_Full_Quantity, -- Get the full string from commodity table (e.g., '32 kg')
-                                            d.Quantity AS Donated_Numeric_Quantity, -- The numeric quantity donated from goods_donated table
-                                            d.Date_Donated,
-                                            d.Location,
-                                            d.Status
-                                        FROM `goods_donated` d
-                                        JOIN `commodity` c ON d.Commodity_ID = c.Commodity_ID
-                                        WHERE d.Donor_ID = '" . mysqli_real_escape_string($conn, $donor_id_from_db) . "'";
-                                $result = $conn->query($sql);
-                                if ($result->num_rows > 0) {
-                                    while ($row = $result->fetch_assoc()) {
-                                        echo "<tr>";
-                                        echo "<td>" . htmlspecialchars($row["Dontation_ID"]) . "</td>";
-                                        echo "<td>" . htmlspecialchars($row["Commodity"]) . "</td>";
-
-                                        // ********* PHP LOGIC TO EXTRACT UNIT FOR DISPLAY IN DONATION HISTORY (USING EXPLODE) *********
-                                        $unit_for_display = '';
-                                        $parts = explode(' ', $row["Commodity_Full_Quantity"]); // Split by space
-                                        
-                                        // If there's more than one part, assume the last part is the unit
-                                        if (count($parts) > 1) {
-                                            $potential_unit = end($parts); // Get the last part
-                                            // Basic check: if the "unit" is actually a number, it's not a unit.
-                                            // This prevents "32 50" from showing "50" as a unit.
-                                            if (!is_numeric($potential_unit)) {
-                                                $unit_for_display = $potential_unit;
-                                            }
-                                        }
-                                        // ********* END PHP LOGIC *********
-
-                                        // Concatenate the numeric donated quantity with the extracted unit
-                                        echo "<td>" . htmlspecialchars($row["Donated_Numeric_Quantity"]) . " " . htmlspecialchars($unit_for_display) . "</td>";
-                                        
-                                        echo "<td>" . htmlspecialchars($row["Date_Donated"]) . "</td>";
-                                        echo "<td>" . htmlspecialchars($row["Location"]) . "</td>";
-                                        echo "<td>" . htmlspecialchars($row["Status"]) . "</td>";
-                                        echo "</tr>";
-                                    }
-                                } else {
-                                    echo "<tr><td colspan='6' class='text-center'>You have not made any donations yet.</td></tr>";
-                                }
-                                ?>
-                            </tbody>
-                        </table>
-                    </div>
-                    <button onclick="printData2()" class="print-button">Print My Donation History</button>
+    <!-- Interactive Consignment QR Pass Modal -->
+    <div class="modal fade" id="qrModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-shield-check text-success me-2"></i>Aid Consignment Pass</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
-            </div>
-        </div>
-    </div>
-    <div class="container-fluid bg-footer bg-primary text-white mt-5">
-        <div class="container">
-            <div class="row gx-5">
-                <div class="col-lg-8 col-md-6">
-                    <div class="row gx-5">
-                        <div id="contact" class="col-lg-4 col-md-12 pt-5 mb-5">
-                            <h4 class="text-white mb-4">Get In Touch</h4>
-                            <div class="d-flex mb-2">
-                                <i class="bi bi-geo-alt text-white me-2"></i>
-                                <p class="text-white mb-0">Nairobi, KENYA.</p>
-                            </div>
-                            <div class="d-flex mb-2">
-                                <i class="bi bi-envelope-open text-white me-2"></i>
-                                <p class="text-white mb-0">donatefood@gmail.com</p>
-                            </div>
-                            <div class="d-flex mb-2">
-                                <i class="bi bi-telephone text-white me-2"></i>
-                                <p class="text-white mb-0">0745603353</p>
-                            </div>
-                            <div class="d-flex mt-4">
-                                <a class="btn btn-secondary btn-square rounded-circle me-2" href="https://x.com/"><i class="fab fa-twitter"></i></a>
-                                <a class="btn btn-secondary btn-square rounded-circle me-2" href="https://www.linkedin.com/"><i class="fab fa-linkedin-in"></i></a>
-                            </div>
+                <div class="modal-body p-4" id="printablePass">
+                    <div class="consignment-pass">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="badge bg-success">FoodTrace Verified</span>
+                            <span class="text-muted small" id="qrPassDate"></span>
                         </div>
-                        <div class="col-lg-4 col-md-12 pt-0 pt-lg-5 mb-5">
-                            <h4 class="text-white mb-4">Quick Links</h4>
-                            <div class="d-flex flex-column justify-content-start">
-                                <a class="text-white mb-2" href="index2.php"><i class="bi bi-arrow-right text-white me-2"></i>Home</a>
-                                <a class="text-white mb-2" href="login_page.html"><i class="bi bi-arrow-right text-white me-2"></i>Logout</a>
+                        <h4 class="fw-bold mb-0">Consignment #<span id="qrPassId"></span></h4>
+                        <p class="text-muted small mb-2">Handover Verification Badge</p>
+
+                        <!-- Live Rendered QR Element -->
+                        <div id="qrcode"></div>
+
+                        <div class="text-start bg-white p-3 rounded border">
+                            <div class="row g-2 small">
+                                <div class="col-6"><strong>Commodity:</strong> <span id="qrPassCommodity"></span></div>
+                                <div class="col-6"><strong>Quantity:</strong> <span id="qrPassQty"></span></div>
+                                <div class="col-6"><strong>Donor:</strong> <?php echo htmlspecialchars($first); ?></div>
+                                <div class="col-6"><strong>Target Hub:</strong> <span id="qrPassHub"></span></div>
+                                <div class="col-12 mt-2 pt-2 border-top"><strong>Current Status:</strong> <span id="qrPassStatus" class="status-badge"></span></div>
                             </div>
                         </div>
                     </div>
                 </div>
+                <div class="modal-footer bg-light justify-content-between">
+                    <span class="small text-muted">Show this QR token to the Area Administrator</span>
+                    <button type="button" class="btn btn-dark btn-sm" onclick="printConsignmentPass()"><i class="bi bi-printer me-1"></i> Print Pass</button>
+                </div>
             </div>
         </div>
     </div>
-    <div class="container-fluid bg-dark text-white py-4">
+
+    <!-- Footer -->
+    <footer class="site-footer">
         <div class="container text-center">
-            <p class="mb-0">&copy; <a class="text-secondary fw-bold" href="index2.php">Food Donation System</a>. All Rights Reserved.</p>
+            <p class="mb-0 small text-white-50">&copy; Food Aid Traceability System. All Rights Reserved.</p>
         </div>
-    </div>
-    <a href="#" class="btn btn-secondary py-3 fs-4 back-to-top"><i class="bi bi-arrow-up"></i></a>
+    </footer>
 
-    <script src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="lib/easing/easing.min.js"></script>
-    <script src="lib/waypoints/waypoints.min.js"></script>
-    <script src="lib/counterup/counterup.min.js"></script>
-    <script src="lib/owlcarousel/owl.carousel.min.js"></script>
-
-    <script src="js/main.js"></script>
-
-    <script type="text/javascript">
-        // Set today's date for the donation form
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Set date format MM/DD/YYYY for donation submission
         document.addEventListener('DOMContentLoaded', function() {
             const todayInput = document.getElementById("today");
             if (todayInput) {
                 const n = new Date();
-                const y = n.getFullYear();
-                const m = n.getMonth() + 1; // getMonth() is 0-indexed
-                const d = n.getDate();
-                // Format date as MM/DD/YYYY for insertion.inc.php which expects this format
-                todayInput.value = m + "/" + d + "/" + y;
+                todayInput.value = (n.getMonth() + 1) + "/" + n.getDate() + "/" + n.getFullYear();
             }
 
-            // --- Donation Status Toast Display ---
+            // Trigger success toast if arriving from donation submission
             const urlParams = new URLSearchParams(window.location.search);
-            const donationStatus = urlParams.get('donation');
-            const liveToast = document.getElementById('liveToast');
-            const errorToast = document.getElementById('errorToast');
-
-            if (donationStatus === 'success' && liveToast) {
-                const toast = new bootstrap.Toast(liveToast);
-                toast.show();
-                // Optionally remove the query parameter to prevent re-showing on refresh
-                history.replaceState({}, document.title, window.location.pathname);
-            } else if (donationStatus === 'error' && errorToast) {
-                const toast = new bootstrap.Toast(errorToast);
-                toast.show();
+            if (urlParams.get('donation') === 'success') {
+                const toastEl = document.getElementById('liveToast');
+                if (toastEl) new bootstrap.Toast(toastEl).show();
                 history.replaceState({}, document.title, window.location.pathname);
             }
-            // --- End Donation Status Toast Display ---
         });
 
-
-        // Populate donate modal fields
-        var donateModal = document.getElementById('donateModal')
+        // Populate pledge modal
+        const donateModal = document.getElementById('donateModal');
         if (donateModal) {
             donateModal.addEventListener('show.bs.modal', function(event) {
-                var button = event.relatedTarget;
-                var commodityId = button.getAttribute('data-commodity-id');
-                var commodityName = button.getAttribute('data-commodity-name');
-                // Get numeric quantity and unit from data attributes
-                var numericQuantity = button.getAttribute('data-commodity-quantity-numeric');
-                var unit = button.getAttribute('data-commodity-unit');
-               
-                var modalTitle = donateModal.querySelector('.modal-title');
-                var modalCommodityIdInput = donateModal.querySelector('#commodity-id');
-                var modalCommodityNameInput = donateModal.querySelector('#commodity-name');
-                var modalQuantityInput = donateModal.querySelector('#quantity'); // Get the quantity input
-                var modalQuantityUnitSpan = donateModal.querySelector('#quantity-unit'); // Get the new unit span
-
-                modalTitle.textContent = 'Donate to ' + commodityName;
-                modalCommodityIdInput.value = commodityId;
-                modalCommodityNameInput.value = commodityName;
-                modalQuantityInput.value = numericQuantity; // Set only the number to the input type="number"
-                modalQuantityUnitSpan.textContent = unit; // Display the unit next to the input
-
-                // Debug for modal - RETAIN FOR DIAGNOSIS IF MODAL UNIT ISSUE PERSISTS
-                console.log('Modal Population - Numeric Quantity:', numericQuantity, 'Unit:', unit);
+                const btn = event.relatedTarget;
+                donateModal.querySelector('#commodity-id').value = btn.getAttribute('data-commodity-id');
+                donateModal.querySelector('#commodity-name').value = btn.getAttribute('data-commodity-name');
+                donateModal.querySelector('#quantity').value = btn.getAttribute('data-commodity-quantity-numeric');
+                donateModal.querySelector('#quantity-unit').textContent = btn.getAttribute('data-commodity-unit');
             });
         }
 
-        // Print function for commodities table
-        function printData1() {
-            var divToPrint = document.getElementById("printTable1");
-            var newWin = window.open("");
-            newWin.document.write('<html><head><title>List of Commodities</title>');
-            newWin.document.write('<link href="css/bootstrap.min.css" rel="stylesheet">'); // Include Bootstrap CSS for printing
-            newWin.document.write('<style>table { width: 100%; border-collapse: collapse; } th, td { border: 1px solid #ddd; padding: 8px; text-align: left; } th { background-color: #8BC34A; color: white; } </style>'); // Custom styles for print
-            newWin.document.write('</head><body>');
-            newWin.document.write('<h2>List of Commodities</h2>');
-            newWin.document.write(divToPrint.outerHTML);
-            newWin.document.close();
-            newWin.print();
-            newWin.close();
+        // Generate Dynamic QR Code in Modal
+        let qrCodeInstance = null;
+        function openQrModal(item, unit) {
+            document.getElementById('qrPassId').textContent = item.Dontation_ID;
+            document.getElementById('qrPassDate').textContent = item.Date_Donated;
+            document.getElementById('qrPassCommodity').textContent = item.Commodity;
+            document.getElementById('qrPassQty').textContent = `${item.Donated_Qty} ${unit}`;
+            document.getElementById('qrPassHub').textContent = item.Location;
+            
+            const statusEl = document.getElementById('qrPassStatus');
+            statusEl.textContent = item.Status;
+            statusEl.className = 'status-badge ' + (item.Status === 'Delivered' ? 'status-delivered' : (item.Status === 'Collected' ? 'status-collected' : 'status-pending'));
+
+            // Clear previous QR canvas
+            const qrContainer = document.getElementById('qrcode');
+            qrContainer.innerHTML = "";
+
+            // Encode consignment ID for scanner recognition
+            qrCodeInstance = new QRCode(qrContainer, {
+                text: String(item.Dontation_ID),
+                width: 170,
+                height: 170,
+                colorDark : "#0f172a",
+                colorLight : "#ffffff",
+                correctLevel : QRCode.CorrectLevel.H
+            });
+
+            new bootstrap.Modal(document.getElementById('qrModal')).show();
         }
 
-        // Print function for donation history table
-        function printData2() {
-            var divToPrint = document.getElementById("printTable2");
-            var newWin = window.open("");
-            newWin.document.write('<html><head><title>My Donation History</title>');
-            newWin.document.write('<link href="css/bootstrap.min.css" rel="stylesheet">'); // Include Bootstrap CSS for printing
-            newWin.document.write('<style>table { width: 100%; border-collapse: collapse; } th, td { border: 1px solid #ddd; padding: 8px; text-align: left; } th { background-color: #8BC34A; color: white; } </style>'); // Custom styles for print
-            newWin.document.write('</head><body>');
-            newWin.document.write('<h2>My Donation History</h2>');
-            newWin.document.write(divToPrint.outerHTML);
-            newWin.document.close();
-            newWin.print();
-            newWin.close();
+        // Print Consignment Pass
+        function printConsignmentPass() {
+            const passHtml = document.getElementById('printablePass').innerHTML;
+            const win = window.open('', '', 'height=600,width=650');
+            win.document.write('<html><head><title>Print Consignment Pass</title>');
+            win.document.write('<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">');
+            win.document.write('<style>body { font-family: sans-serif; padding: 20px; text-align: center; } .consignment-pass { border: 2px dashed #000; padding: 20px; } #qrcode img { margin: 0 auto; }</style>');
+            win.document.write('</head><body>');
+            win.document.write(passHtml);
+            win.document.write('</body></html>');
+            win.document.close();
+            setTimeout(() => { win.print(); win.close(); }, 500);
+        }
+
+        // General Table Printer
+        function printTableData(tableId, title) {
+            const divToPrint = document.getElementById(tableId);
+            const win = window.open("", "", "height=700,width=900");
+            win.document.write(`<html><head><title>${title}</title>`);
+            win.document.write('<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">');
+            win.document.write('<style>table { width: 100%; border-collapse: collapse; margin-top: 20px; } th, td { border: 1px solid #ddd; padding: 8px; font-size: 13px; } th { background-color: #16a34a; color: white; }</style>');
+            win.document.write(`</head><body><h3 style="text-align:center;margin-top:20px;">${title}</h3>`);
+            win.document.write(divToPrint.outerHTML);
+            win.document.write('</body></html>');
+            win.document.close();
+            win.print();
+            win.close();
         }
     </script>
 </body>

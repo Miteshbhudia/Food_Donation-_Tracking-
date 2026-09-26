@@ -7,8 +7,10 @@ error_reporting(E_ALL);
 
 require_once 'dbconnection.inc.php';
 
-// --- Donor Registration ---
-if (isset($_POST["reg"]) || (isset($_POST["fname"]) && isset($_POST["email"]))) {
+// ==========================================
+// 1. DONOR REGISTRATION
+// ==========================================
+if (isset($_POST["reg"]) or (isset($_POST["fname"]) and isset($_POST["email"]))) {
     $fname       = trim($_POST['fname'] ?? '');
     $phone       = trim($_POST['phone'] ?? '');
     $email       = trim($_POST['email'] ?? '');
@@ -22,9 +24,7 @@ if (isset($_POST["reg"]) || (isset($_POST["fname"]) && isset($_POST["email"]))) 
     } else {
         $hashedpassword = password_hash($password, PASSWORD_BCRYPT);
 
-        // Cleaned prepared statement without legacy recovery columns
         $stmt =$conn->prepare("INSERT INTO `donors`(`Fullname`, `Email_Address`, `Phone_Number`, `Password`) VALUES (?, ?, ?, ?)");
-        
         if (!$stmt) {
             die("Database statement error: " . $conn->error);
         }
@@ -41,7 +41,9 @@ if (isset($_POST["reg"]) || (isset($_POST["fname"]) && isset($_POST["email"]))) 
     }
 }
 
-// --- Admin Addition ---
+// ==========================================
+// 2. ADMIN REGISTRATION
+// ==========================================
 if (isset($_POST['adda'])) {
     $fname     = trim($_POST['fname'] ?? '');
     $phone     = trim($_POST['phone'] ?? '');
@@ -53,13 +55,12 @@ if (isset($_POST['adda'])) {
     if ($password ===$cpassword) {
         $hashedpassword = password_hash($password, PASSWORD_BCRYPT);
 
-        // Cleaned prepared statement without legacy recovery columns
         $stmt =$conn->prepare("INSERT INTO `admin`(`Fullname`, `Email_Address`, `Position`, `Location`, `Password`) VALUES (?, ?, 'Area Administrator', ?, ?)");
         $stmt->bind_param("ssss", $fname,$email, $location,$hashedpassword);
 
         if ($stmt->execute()) {
             $stmt->close();$conn->close();
-            header("Location: index.php");
+            header("Location: index1.php");
             exit();
         } else {
             die("Admin registration failed: " . $stmt->error);
@@ -69,26 +70,42 @@ if (isset($_POST['adda'])) {
     }
 }
 
-// --- Commodity Addition ---
+// ==========================================
+// 3. COMMODITY ADDITION (AREA ADMIN)
+// ==========================================
 if (isset($_POST['addc'])) {
     $adr   = intval($_POST['adr'] ?? 0);
     $com   = trim($_POST['com'] ?? '');
-    $num   = trim($_POST['number'] ?? '');
-    $date1 = trim($_POST['date1'] ?? '');
+    $date1 = trim($_POST['date1'] ?? date('Y-m-d'));
+
+    // Handle combined string or separate numeric + unit inputs
+    if (!empty($_POST['number'])) {
+        $num = trim($_POST['number']);
+    } elseif (isset($_POST['quantity_num']) and isset($_POST['unit'])) {$num = trim($_POST['quantity_num']) . ' ' . trim($_POST['unit']);
+    } elseif (isset($_POST['quantity_value']) and isset($_POST['quantity_unit'])) {$num = trim($_POST['quantity_value']) . ' ' . trim($_POST['quantity_unit']);
+    } else {
+        $num = '0 kg';
+    }
+
+    if (empty($adr) or empty($com) or empty($num)) {
+        die("Error: Missing required fields. Please ensure commodity name, quantity, and unit are supplied.");
+    }
 
     $stmt =$conn->prepare("INSERT INTO `commodity`(`Area_Administrator`, `Commodity`, `Quantity`, `Date_Added`) VALUES (?, ?, ?, ?)");
     $stmt->bind_param("isss", $adr,$com, $num,$date1);
 
     if ($stmt->execute()) {
         $stmt->close();$conn->close();
-        header("Location: index.php?commodity=success");
+        header("Location: index1.php?commodity=success");
         exit();
     } else {
         die("Error adding commodity: " . $stmt->error);
     }
 }
 
-// --- Donation Submission ---
+// ==========================================
+// 4. DONATION SUBMISSION (DONOR PLEDGE)
+// ==========================================
 if (isset($_POST['add_donation'])) {
     $commodity_id             = intval($_POST['commodity_id'] ?? 0);
     $donor_id                 = intval($_POST['donor_id'] ?? 0);
@@ -97,39 +114,42 @@ if (isset($_POST['add_donation'])) {
     $date_donated_raw         =$_POST['date'] ?? '';
 
     $date_obj = DateTime::createFromFormat('m/d/Y',$date_donated_raw);
-    $date_donated_formatted =$date_obj ? $date_obj->format('Y-m-d') : date('Y-m-d');$status = "Pending Pickup";
+    $date_donated_formatted = ($date_obj !== false) ? $date_obj->format('Y-m-d') : date('Y-m-d');$status = "Pending Pickup";
 
     $stmt_insert =$conn->prepare("INSERT INTO `goods_donated`(`Commodity_ID`, `Donor_ID`, `Quantity`, `Date_Donated`, `Location`, `Status`) VALUES (?, ?, ?, ?, ?, ?)");
     $stmt_insert->bind_param("iissss", $commodity_id,$donor_id, $quantity_donated_numeric,$date_donated_formatted, $location,$status);
 
     if ($stmt_insert->execute()) {
-        $stmt_get_current_qty =$conn->prepare("SELECT Quantity FROM `commodity` WHERE `Commodity_ID` = ?");
-        $stmt_get_current_qty->bind_param("i", $commodity_id);
-        $stmt_get_current_qty->execute();$res = $stmt_get_current_qty->get_result()->fetch_assoc();$current_full_quantity_str = $res['Quantity'] ?? '';$stmt_get_current_qty->close();
+        // Fetch remaining quantity
+        $stmt_get =$conn->prepare("SELECT Quantity FROM `commodity` WHERE `Commodity_ID` = ?");
+        $stmt_get->bind_param("i", $commodity_id);
+        $stmt_get->execute();$res = $stmt_get->get_result()->fetch_assoc();$stmt_get->close();
 
-        $current_numeric_qty = 0;
-        $unit_from_commodity = '';
-        if (preg_match('/^(\d+(\.\d+)?)\s*([a-zA-Z]+)?$/', $current_full_quantity_str,$matches)) {
-            $current_numeric_qty = (float)$matches[1];
-            $unit_from_commodity =$matches[3] ?? '';
-        }
+        $current_full_str =$res['Quantity'] ?? '';
+        $current_numeric  = floatval($current_full_str);
 
-        $new_numeric_qty = max(0, $current_numeric_qty - (float)$quantity_donated_numeric);
-        $new_full_quantity_str =$new_numeric_qty . ($unit_from_commodity ? ' ' . $unit_from_commodity : '');
+        // Extract unit suffix safely
+        $parts = explode(' ', trim($current_full_str));
+        $unit  = (count($parts) > 1 and !is_numeric(end($parts))) ? end($parts) : '';
 
-        $stmt_update =$conn->prepare("UPDATE `commodity` SET `Quantity` = ? WHERE `Commodity_ID` = ?");
-        $stmt_update->bind_param("si", $new_full_quantity_str,$commodity_id);
-        $stmt_update->execute();$stmt_update->close();
+        // Decrement quantity without going below zero
+        $new_qty_num  = max(0,$current_numeric - floatval($quantity_donated_numeric));$new_full_str = trim($new_qty_num . ' ' .$unit);
+
+        // Update commodity balance
+        $stmt_upd =$conn->prepare("UPDATE `commodity` SET `Quantity` = ? WHERE `Commodity_ID` = ?");
+        $stmt_upd->bind_param("si", $new_full_str,$commodity_id);
+        $stmt_upd->execute();$stmt_upd->close();
 
         $stmt_insert->close();$conn->close();
-        header("Location: index.php?donation=success");
+
+        header("Location: index2.php?donation=success");
         exit();
     } else {
         die("Donation insertion failed: " . $stmt_insert->error);
     }
 }
 
-// Fallback
+// Fallback if accessed directly without POST
 header("Location: homepage.html");
 exit();
 ?>
