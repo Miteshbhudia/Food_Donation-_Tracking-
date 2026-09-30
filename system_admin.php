@@ -9,78 +9,140 @@ if (!isset($_SESSION['adminname']) and !isset($_SESSION['Email'])) {
 }
 
 $fullname = $_SESSION['adminname'] ?? 'System Administrator';
-$message  = '';
 
-$edit_mode     = false;
-$admin_to_edit = null;
+// Read and clear flash messages (Post-Redirect-Get Pattern)
+$flash_success = $_SESSION['flash_success'] ?? null;
+$flash_error   = $_SESSION['flash_error'] ?? null;
+unset($_SESSION['flash_success'], $_SESSION['flash_error']);
+
+$edit_mode        = false;
+$admin_to_edit    = null;
+$edit_donor_mode  = false;
+$donor_to_edit    = null;
+
+// Determine active tab from URL (default: area_admins)
+$active_tab = $_GET['tab'] ?? 'area_admins';
 
 // ==========================================
-// 1. HANDLE FORM SUBMISSIONS
+// 1. HANDLE FORM SUBMISSIONS (PRG PATTERN)
 // ==========================================
 
-// Handle Update action
+// A. Handle Administrator Update
 if (isset($_POST['update_admin'])) {
     $admin_id           = intval($_POST['admin_id'] ?? 0);
     $fullname_edit      = trim($_POST['fullname'] ?? '');
     $email_address_edit = trim($_POST['email_address'] ?? '');
     $location_edit      = trim($_POST['location'] ?? '');
+    $target_tab         = trim($_POST['target_tab'] ?? 'area_admins');
 
     if (!empty($admin_id) and !empty($fullname_edit) and !empty($email_address_edit)) {
         $stmt = $conn->prepare("UPDATE `admin` SET `Fullname` = ?, `Email_Address` = ?, `Location` = ? WHERE `Administrator_ID` = ?");
         $stmt->bind_param("sssi", $fullname_edit, $email_address_edit, $location_edit, $admin_id);
 
         if ($stmt->execute()) {
-            $message = "<div class='alert alert-success alert-dismissible fade show' role='alert'>
-                            <i class='bi bi-check-circle-fill me-2'></i>Administrator <strong>" . htmlspecialchars($fullname_edit) . "</strong> updated successfully!
-                            <button type='button' class='btn-close' data-bs-dismiss='alert'></button>
-                        </div>";
+            $_SESSION['flash_success'] = "Administrator profile <strong>" . htmlspecialchars($fullname_edit) . "</strong> updated successfully!";
         } else {
-            $message = "<div class='alert alert-danger alert-dismissible fade show' role='alert'>
-                            <i class='bi bi-exclamation-triangle-fill me-2'></i>Error updating administrator: " . htmlspecialchars($stmt->error) . "
-                            <button type='button' class='btn-close' data-bs-dismiss='alert'></button>
-                        </div>";
+            $_SESSION['flash_error'] = "Error updating administrator: " . htmlspecialchars($stmt->error);
         }
         $stmt->close();
     } else {
-        $message = "<div class='alert alert-warning alert-dismissible fade show' role='alert'>
-                        <i class='bi bi-exclamation-circle-fill me-2'></i>Please complete all required fields.
-                        <button type='button' class='btn-close' data-bs-dismiss='alert'></button>
-                    </div>";
+        $_SESSION['flash_error'] = "Please complete all required fields.";
     }
+    header("Location: system_admin.php?tab=" . urlencode($target_tab));
+    exit();
 }
 
-// Handle Delete action
+// B. Handle Donor Update
+if (isset($_POST['update_donor'])) {
+    $donor_id           = intval($_POST['donor_id'] ?? 0);
+    $fullname_edit      = trim($_POST['fullname'] ?? '');
+    $email_address_edit = trim($_POST['email_address'] ?? '');
+    $phone_edit         = trim($_POST['phone_number'] ?? '');
+
+    if (!empty($donor_id) and !empty($fullname_edit) and !empty($email_address_edit)) {
+        $stmt = $conn->prepare("UPDATE `donors` SET `Fullname` = ?, `Email_Address` = ?, `Phone_Number` = ? WHERE `Donor_ID` = ?");
+        $stmt->bind_param("sssi", $fullname_edit, $email_address_edit, $phone_edit, $donor_id);
+
+        if ($stmt->execute()) {
+            $_SESSION['flash_success'] = "Donor profile <strong>" . htmlspecialchars($fullname_edit) . "</strong> updated successfully!";
+        } else {
+            $_SESSION['flash_error'] = "Error updating donor: " . htmlspecialchars($stmt->error);
+        }
+        $stmt->close();
+    } else {
+        $_SESSION['flash_error'] = "Please complete all required fields.";
+    }
+    header("Location: system_admin.php?tab=donors");
+    exit();
+}
+
+// C. Handle Administrator Deletion
 if (isset($_POST['dela'])) {
     $id_to_delete = intval($_POST['id3'] ?? 0);
+    $del_tab      = trim($_POST['from_tab'] ?? 'area_admins');
 
     $stmt = $conn->prepare("DELETE FROM `admin` WHERE `Administrator_ID` = ?");
     $stmt->bind_param("i", $id_to_delete);
 
-    if ($stmt->execute()) {$message = "<div class='alert alert-success alert-dismissible fade show' role='alert'>
-                        <i class='bi bi-check-circle-fill me-2'></i>Area Administrator successfully removed from system.
-                        <button type='button' class='btn-close' data-bs-dismiss='alert'></button>
-                    </div>";
+    if ($stmt->execute()) {
+        $_SESSION['flash_success'] = "Administrator successfully removed from system.";
     } else {
-        $message = "<div class='alert alert-danger alert-dismissible fade show' role='alert'>
-                        <i class='bi bi-exclamation-triangle-fill me-2'></i>Error deleting administrator: " . htmlspecialchars($stmt->error) . "
-                        <button type='button' class='btn-close' data-bs-dismiss='alert'></button>
-                    </div>";
+        $_SESSION['flash_error'] = "Error deleting administrator: " . htmlspecialchars($stmt->error);
+    }
+    $stmt->close();
+    header("Location: system_admin.php?tab=" . urlencode($del_tab));
+    exit();
+}
+
+// D. Handle Donor Deletion
+if (isset($_POST['del_donor'])) {
+    $donor_id_to_del = intval($_POST['donor_id'] ?? 0);
+
+    $stmt = $conn->prepare("DELETE FROM `donors` WHERE `Donor_ID` = ?");
+    $stmt->bind_param("i", $donor_id_to_del);
+
+    if ($stmt->execute()) {
+        $_SESSION['flash_success'] = "Donor account successfully removed.";
+    } else {
+        $_SESSION['flash_error'] = "Error deleting donor: " . htmlspecialchars($stmt->error);
+    }
+    $stmt->close();
+    header("Location: system_admin.php?tab=donors");
+    exit();
+}
+
+// Check for Administrator Edit Request
+if (isset($_GET['action']) and $_GET['action'] === 'edit' and isset($_GET['id'])) {
+    $admin_id_to_fetch = intval($_GET['id']);
+
+    $stmt = $conn->prepare("SELECT `Administrator_ID`, `Fullname`, `Email_Address`, `Position`, `Location` FROM `admin` WHERE `Administrator_ID` = ?");
+    $stmt->bind_param("i", $admin_id_to_fetch);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    if ($result->num_rows > 0) {
+        $admin_to_edit = $result->fetch_assoc();
+        $edit_mode = true;
+    } else {
+        $_SESSION['flash_error'] = "Administrator account not found.";
     }
     $stmt->close();
 }
 
-// Check for Edit Request
-if (isset($_GET['action']) and $_GET['action'] === 'edit' and isset($_GET['id'])) {
-    $admin_id_to_fetch = intval($_GET['id']);
+// Check for Donor Edit Request
+if (isset($_GET['action']) and $_GET['action'] === 'edit_donor' and isset($_GET['id'])) {
+    $donor_id_to_fetch = intval($_GET['id']);
 
-    $stmt =$conn->prepare("SELECT `Administrator_ID`, `Fullname`, `Email_Address`, `Position`, `Location` FROM `admin` WHERE `Administrator_ID` = ? AND `Position` = 'Area Administrator'");
-    $stmt->bind_param("i", $admin_id_to_fetch);$stmt->execute();
-    $result =$stmt->get_result();
+    $stmt = $conn->prepare("SELECT `Donor_ID`, `Fullname`, `Email_Address`, `Phone_Number` FROM `donors` WHERE `Donor_ID` = ?");
+    $stmt->bind_param("i", $donor_id_to_fetch);
+    $stmt->execute();
+    $result = $stmt->get_result();
 
-    if ($result->num_rows > 0) {$admin_to_edit = $result->fetch_assoc();$edit_mode = true;
+    if ($result->num_rows > 0) {
+        $donor_to_edit = $result->fetch_assoc();
+        $edit_donor_mode = true;
     } else {
-        $message = "<div class='alert alert-danger'>Area Administrator not found or unauthorized position.</div>";
-        $edit_mode = false;
+        $_SESSION['flash_error'] = "Donor profile not found.";
     }
     $stmt->close();
 }
@@ -88,17 +150,20 @@ if (isset($_GET['action']) and $_GET['action'] === 'edit' and isset($_GET['id'])
 // ==========================================
 // 2. FETCH DASHBOARD STATISTICS
 // ==========================================
-$donor_res =$conn->query("SELECT COUNT(*) as total FROM `donors`");
-$total_donors =$donor_res->fetch_assoc()['total'] ?? 0;
+$donor_res = $conn->query("SELECT COUNT(*) as total FROM `donors`");
+$total_donors = $donor_res->fetch_assoc()['total'] ?? 0;
 
-$admin_res =$conn->query("SELECT COUNT(*) as total FROM `admin` WHERE `Position` = 'Area Administrator'");
-$total_admins =$admin_res->fetch_assoc()['total'] ?? 0;
+$admin_res = $conn->query("SELECT COUNT(*) as total FROM `admin` WHERE `Position` = 'Area Administrator'");
+$total_admins = $admin_res->fetch_assoc()['total'] ?? 0;
 
-$donation_res =$conn->query("SELECT COUNT(*) as total FROM `goods_donated`");
-$total_donations =$donation_res->fetch_assoc()['total'] ?? 0;
+$sys_admin_res = $conn->query("SELECT COUNT(*) as total FROM `admin` WHERE `Position` = 'System Administrator'");
+$total_sys_admins = $sys_admin_res->fetch_assoc()['total'] ?? 0;
 
-$commodity_res =$conn->query("SELECT COUNT(*) as total FROM `commodity`");
-$total_commodities =$commodity_res->fetch_assoc()['total'] ?? 0;
+$donation_res = $conn->query("SELECT COUNT(*) as total FROM `goods_donated`");
+$total_donations = $donation_res->fetch_assoc()['total'] ?? 0;
+
+$commodity_res = $conn->query("SELECT COUNT(*) as total FROM `commodity`");
+$total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -114,7 +179,6 @@ $total_commodities =$commodity_res->fetch_assoc()['total'] ?? 0;
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
-    <!-- Bootstrap Icons v1.11.3 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 
@@ -127,6 +191,10 @@ $total_commodities =$commodity_res->fetch_assoc()['total'] ?? 0;
             --gray-body: #64748b;
             --bg-light: #f8fafc;
             --card-border: #e2e8f0;
+        }
+
+        html {
+            scroll-behavior: smooth;
         }
 
         body {
@@ -164,6 +232,7 @@ $total_commodities =$commodity_res->fetch_assoc()['total'] ?? 0;
             box-shadow: 0 8px 25px rgba(15, 23, 42, 0.04);
             padding: 2.25rem;
             margin-bottom: 2.5rem;
+            scroll-margin-top: 100px;
         }
 
         /* Stat Cards */
@@ -209,7 +278,27 @@ $total_commodities =$commodity_res->fetch_assoc()['total'] ?? 0;
             margin-bottom: 0;
         }
 
-        /* Tables */
+        /* Tabs & Modern Controls */
+        .nav-tabs {
+            border-bottom: 2px solid var(--card-border);
+        }
+        .nav-tabs .nav-link {
+            font-weight: 600;
+            color: var(--gray-body);
+            border: none;
+            border-bottom: 2px solid transparent;
+            padding: 0.75rem 1.25rem;
+            transition: all 0.2s ease;
+        }
+        .nav-tabs .nav-link:hover {
+            color: var(--primary-hover);
+        }
+        .nav-tabs .nav-link.active {
+            color: var(--primary);
+            border-bottom: 2px solid var(--primary);
+            background: transparent;
+        }
+
         .table thead th {
             background-color: #f1f5f9;
             color: #334155;
@@ -270,6 +359,28 @@ $total_commodities =$commodity_res->fetch_assoc()['total'] ?? 0;
         .status-collected { background-color: #e0f2fe; color: #0369a1; }
         .status-delivered { background-color: #dcfce7; color: #166534; }
 
+        .search-input-box {
+            position: relative;
+        }
+        .search-input-box i {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--gray-body);
+            pointer-events: none;
+        }
+        .search-input-box input {
+            padding-left: 36px;
+            border-radius: 8px;
+            border: 1px solid var(--card-border);
+            font-size: 0.875rem;
+        }
+        .search-input-box input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.15);
+        }
+
         .site-footer {
             background-color: #0b1120;
             color: #94a3b8;
@@ -308,16 +419,22 @@ $total_commodities =$commodity_res->fetch_assoc()['total'] ?? 0;
 
     <div class="container">
         
-        <!-- Account Provisioning Alert Banner (Displays when returning from reg_area.php) -->
-        <?php if (isset($_GET['user_added'])): ?>
+        <!-- Flash Messages (PRG Pattern) -->
+        <?php if ($flash_success): ?>
             <div class="alert alert-success alert-dismissible fade show mb-4" role="alert">
                 <i class="bi bi-check-circle-fill me-2 fs-5 align-middle"></i>
-                <strong>Account Created!</strong> A new <strong><?php echo htmlspecialchars($_GET['user_added']); ?></strong> account has been successfully provisioned.
+                <?php echo $flash_success; ?>
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
         <?php endif; ?>
 
-        <?php if (!empty($message)) echo$message; ?>
+        <?php if ($flash_error): ?>
+            <div class="alert alert-danger alert-dismissible fade show mb-4" role="alert">
+                <i class="bi bi-exclamation-triangle-fill me-2 fs-5 align-middle"></i>
+                <?php echo $flash_error; ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        <?php endif; ?>
 
         <!-- Key Metrics Cards -->
         <div class="row g-4 mb-4">
@@ -351,15 +468,21 @@ $total_commodities =$commodity_res->fetch_assoc()['total'] ?? 0;
             </div>
         </div>
 
-        <!-- Edit Form Card (Conditional) -->
-        <?php if ($edit_mode &&$admin_to_edit): ?>
-            <div class="section-card border-success">
+        <!-- Edit Administrator Card (Conditional) -->
+        <?php if ($edit_mode && $admin_to_edit): ?>
+            <?php 
+                $admin_tab_target = ($admin_to_edit['Position'] === 'System Administrator') ? 'system_admins' : 'area_admins';
+            ?>
+            <div class="section-card border-success shadow-lg" id="editSection">
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h4 class="fw-bold mb-0"><i class="bi bi-pencil-square text-success me-2"></i>Edit Area Administrator</h4>
-                    <a href="system_admin.php" class="btn btn-outline-secondary btn-sm">Cancel</a>
+                    <h4 class="fw-bold mb-0">
+                        <i class="bi bi-pencil-square text-success me-2"></i>Edit <?php echo htmlspecialchars($admin_to_edit['Position']); ?>: <span class="text-success"><?php echo htmlspecialchars($admin_to_edit['Fullname']); ?></span>
+                    </h4>
+                    <a href="system_admin.php?tab=<?php echo urlencode($admin_tab_target); ?>" class="btn btn-outline-secondary btn-sm">Cancel</a>
                 </div>
                 <form method="POST" action="system_admin.php">
                     <input type="hidden" name="admin_id" value="<?php echo htmlspecialchars($admin_to_edit['Administrator_ID']); ?>">
+                    <input type="hidden" name="target_tab" value="<?php echo htmlspecialchars($admin_tab_target); ?>">
 
                     <div class="row g-3">
                         <div class="col-md-6">
@@ -371,7 +494,7 @@ $total_commodities =$commodity_res->fetch_assoc()['total'] ?? 0;
                             <input type="email" class="form-control" name="email_address" value="<?php echo htmlspecialchars($admin_to_edit['Email_Address']); ?>" required>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label small fw-semibold">Position</label>
+                            <label class="form-label small fw-semibold">Position / Role</label>
                             <input type="text" class="form-control bg-light" name="position" value="<?php echo htmlspecialchars($admin_to_edit['Position']); ?>" readonly>
                         </div>
                         <div class="col-md-6">
@@ -381,64 +504,224 @@ $total_commodities =$commodity_res->fetch_assoc()['total'] ?? 0;
                     </div>
                     <div class="mt-4 d-flex gap-2">
                         <button type="submit" name="update_admin" class="btn btn-primary-custom">Save Changes</button>
-                        <a href="system_admin.php" class="btn btn-outline-secondary">Discard</a>
+                        <a href="system_admin.php?tab=<?php echo urlencode($admin_tab_target); ?>" class="btn btn-outline-secondary">Discard</a>
                     </div>
                 </form>
             </div>
         <?php endif; ?>
 
-        <!-- Section 1: Area Administrator Management Table -->
-        <div class="section-card">
-            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-2">
-                <div>
-                    <h4 class="fw-bold mb-1">Manage Area Administrators</h4>
-                    <p class="text-muted small mb-0">Authorized field officers tasked with consignment intake and delivery verification</p>
+        <!-- Edit Donor Card (Conditional) -->
+        <?php if ($edit_donor_mode && $donor_to_edit): ?>
+            <div class="section-card border-primary shadow-lg" id="editSection">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4 class="fw-bold mb-0">
+                        <i class="bi bi-person-gear text-primary me-2"></i>Edit Donor Profile: <span class="text-primary"><?php echo htmlspecialchars($donor_to_edit['Fullname']); ?></span>
+                    </h4>
+                    <a href="system_admin.php?tab=donors" class="btn btn-outline-secondary btn-sm">Cancel</a>
                 </div>
-                <a href="reg_area.php" class="btn btn-primary-custom btn-sm"><i class="bi bi-person-plus-fill me-1"></i> Add Area Administrator</a>
+                <form method="POST" action="system_admin.php">
+                    <input type="hidden" name="donor_id" value="<?php echo htmlspecialchars($donor_to_edit['Donor_ID']); ?>">
+
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">Full Name</label>
+                            <input type="text" class="form-control" name="fullname" value="<?php echo htmlspecialchars($donor_to_edit['Fullname']); ?>" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">Email Address</label>
+                            <input type="email" class="form-control" name="email_address" value="<?php echo htmlspecialchars($donor_to_edit['Email_Address']); ?>" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">Phone Number</label>
+                            <input type="text" class="form-control" name="phone_number" value="<?php echo htmlspecialchars($donor_to_edit['Phone_Number']); ?>">
+                        </div>
+                    </div>
+                    <div class="mt-4 d-flex gap-2">
+                        <button type="submit" name="update_donor" class="btn btn-primary-custom">Save Changes</button>
+                        <a href="system_admin.php?tab=donors" class="btn btn-outline-secondary">Discard</a>
+                    </div>
+                </form>
+            </div>
+        <?php endif; ?>
+
+        <!-- Section 1: User & Staff Governance (Separated Tabs with Deep Linking) -->
+        <div class="section-card">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
+                <div>
+                    <h4 class="fw-bold mb-1">System Accounts & User Governance</h4>
+                    <p class="text-muted small mb-0">Manage field depot officers, central administration accounts, and registered donor profiles</p>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <!-- Instant Live Filter Input -->
+                    <div class="search-input-box">
+                        <i class="bi bi-search"></i>
+                        <input type="text" id="accountSearchInput" class="form-control form-control-sm" placeholder="Search accounts...">
+                    </div>
+                    <a href="reg_area.php" class="btn btn-primary-custom btn-sm text-nowrap"><i class="bi bi-person-plus-fill me-1"></i> Provision New Account</a>
+                </div>
             </div>
 
-            <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead>
-                        <tr>
-                            <th>Admin ID</th>
-                            <th>Full Name</th>
-                            <th>Email Address</th>
-                            <th>Position</th>
-                            <th>Assigned Hub</th>
-                            <th class="text-center">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php
-                        $user_sql = "SELECT `Administrator_ID`, `Fullname`, `Email_Address`, `Position`, `Location` FROM `admin` WHERE `Position` = 'Area Administrator' ORDER BY `Administrator_ID` ASC";
-                        $user_result = $conn->query($user_sql);
+            <!-- Tabs Navigation with Dynamic Count Badges -->
+            <ul class="nav nav-tabs mb-3" id="userTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link <?php echo ($active_tab === 'area_admins') ? 'active' : ''; ?>" id="area-admins-tab" data-bs-toggle="tab" data-bs-target="#areaAdminsPane" type="button" role="tab" onclick="syncTabState('area_admins')">
+                        <i class="bi bi-geo-alt-fill text-success me-1"></i> Area Administrators 
+                        <span class="badge bg-success-subtle text-success ms-1 rounded-pill"><?php echo htmlspecialchars($total_admins); ?></span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link <?php echo ($active_tab === 'system_admins') ? 'active' : ''; ?>" id="system-admins-tab" data-bs-toggle="tab" data-bs-target="#systemAdminsPane" type="button" role="tab" onclick="syncTabState('system_admins')">
+                        <i class="bi bi-shield-lock-fill text-dark me-1"></i> System Administrators 
+                        <span class="badge bg-secondary-subtle text-secondary ms-1 rounded-pill"><?php echo htmlspecialchars($total_sys_admins); ?></span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link <?php echo ($active_tab === 'donors') ? 'active' : ''; ?>" id="donors-tab" data-bs-toggle="tab" data-bs-target="#donorsPane" type="button" role="tab" onclick="syncTabState('donors')">
+                        <i class="bi bi-people-fill text-primary me-1"></i> Registered Donors 
+                        <span class="badge bg-primary-subtle text-primary ms-1 rounded-pill"><?php echo htmlspecialchars($total_donors); ?></span>
+                    </button>
+                </li>
+            </ul>
 
-                        if ($user_result &&$user_result->num_rows > 0) {
-                            while ($user_row =$user_result->fetch_assoc()) {
-                                echo "<tr>";
-                                echo "<td><span class='badge bg-light text-dark border'>#" . htmlspecialchars($user_row["Administrator_ID"]) . "</span></td>";
-                                echo "<td class='fw-semibold'>" . htmlspecialchars($user_row["Fullname"]) . "</td>";
-                                echo "<td>" . htmlspecialchars($user_row["Email_Address"]) . "</td>";
-                                echo "<td><span class='badge bg-success-subtle text-success'>" . htmlspecialchars($user_row["Position"]) . "</span></td>";
-                                echo "<td><i class='bi bi-geo-alt text-success me-1'></i>" . (!empty($user_row["Location"]) ? htmlspecialchars($user_row["Location"]) : "Unassigned") . "</td>";
-                                echo "<td class='text-center'>
-                                        <div class='d-inline-flex gap-1'>
-                                            <a href='?action=edit&id=" . htmlspecialchars($user_row["Administrator_ID"]) . "' class='btn btn-outline-primary btn-sm'><i class='bi bi-pencil'></i> Edit</a>
-                                            <form method='POST' action='system_admin.php' onsubmit='return confirm(\"Are you sure you want to remove this administrator?\");' class='d-inline'>
-                                                <input type='hidden' name='id3' value='" . htmlspecialchars($user_row["Administrator_ID"]) . "'>
-                                                <button type='submit' name='dela' class='btn btn-outline-danger btn-sm'><i class='bi bi-trash'></i> Delete</button>
-                                            </form>
-                                        </div>
-                                      </td>";
-                                echo "</tr>";
-                            }
-                        } else {
-                            echo "<tr><td colspan='6' class='text-center py-4 text-muted'>No Area Administrators currently registered in the database.</td></tr>";
-                        }
-                        ?>
-                    </tbody>
-                </table>
+            <div class="tab-content" id="userTabsContent">
+                
+                <!-- Tab 1: Area Administrators -->
+                <div class="tab-pane fade <?php echo ($active_tab === 'area_admins') ? 'show active' : ''; ?>" id="areaAdminsPane" role="tabpanel">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-filterable">
+                            <thead>
+                                <tr>
+                                    <th>Admin ID</th>
+                                    <th>Full Name</th>
+                                    <th>Email Address</th>
+                                    <th>Assigned Hub</th>
+                                    <th class="text-center">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php
+                                $area_sql = "SELECT `Administrator_ID`, `Fullname`, `Email_Address`, `Location` FROM `admin` WHERE `Position` = 'Area Administrator' ORDER BY `Administrator_ID` ASC";
+                                $area_res = $conn->query($area_sql);
+
+                                if ($area_res &&$area_res->num_rows > 0) {
+                                    while ($a_row =$area_res->fetch_assoc()) {
+                                        echo "<tr>";
+                                        echo "<td><span class='badge bg-light text-dark border'>#" . htmlspecialchars($a_row["Administrator_ID"]) . "</span></td>";
+                                        echo "<td class='fw-semibold filter-target'>" . htmlspecialchars($a_row["Fullname"]) . "</td>";
+                                        echo "<td class='filter-target'>" . htmlspecialchars($a_row["Email_Address"]) . "</td>";
+                                        echo "<td class='filter-target'><i class='bi bi-geo-alt text-success me-1'></i>" . (!empty($a_row["Location"]) ? htmlspecialchars($a_row["Location"]) : "Unassigned") . "</td>";
+                                        echo "<td class='text-center'>
+                                                <div class='d-inline-flex gap-1'>
+                                                    <a href='?action=edit&id=" . htmlspecialchars($a_row["Administrator_ID"]) . "&tab=area_admins#editSection' class='btn btn-outline-primary btn-sm'><i class='bi bi-pencil'></i> Edit</a>
+                                                    <form method='POST' action='system_admin.php' onsubmit='return confirm(\"Are you sure you want to remove this Area Administrator?\");' class='d-inline'>
+                                                        <input type='hidden' name='id3' value='" . htmlspecialchars($a_row["Administrator_ID"]) . "'>
+                                                        <input type='hidden' name='from_tab' value='area_admins'>
+                                                        <button type='submit' name='dela' class='btn btn-outline-danger btn-sm'><i class='bi bi-trash'></i> Delete</button>
+                                                    </form>
+                                                </div>
+                                              </td>";
+                                        echo "</tr>";
+                                    }
+                                } else {
+                                    echo "<tr><td colspan='5' class='text-center py-4 text-muted'>No Area Administrators currently registered in the database.</td></tr>";
+                                }
+                                ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Tab 2: System Administrators -->
+                <div class="tab-pane fade <?php echo ($active_tab === 'system_admins') ? 'show active' : ''; ?>" id="systemAdminsPane" role="tabpanel">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-filterable">
+                            <thead>
+                                <tr>
+                                    <th>Admin ID</th>
+                                    <th>Full Name</th>
+                                    <th>Email Address</th>
+                                    <th>HQ Office</th>
+                                    <th class="text-center">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php
+                                $sys_sql = "SELECT `Administrator_ID`, `Fullname`, `Email_Address`, `Location` FROM `admin` WHERE `Position` = 'System Administrator' ORDER BY `Administrator_ID` ASC";
+                                $sys_res = $conn->query($sys_sql);
+
+                                if ($sys_res &&$sys_res->num_rows > 0) {
+                                    while ($s_row =$sys_res->fetch_assoc()) {
+                                        echo "<tr>";
+                                        echo "<td><span class='badge bg-light text-dark border'>#" . htmlspecialchars($s_row["Administrator_ID"]) . "</span></td>";
+                                        echo "<td class='fw-semibold filter-target'>" . htmlspecialchars($s_row["Fullname"]) . "</td>";
+                                        echo "<td class='filter-target'>" . htmlspecialchars($s_row["Email_Address"]) . "</td>";
+                                        echo "<td class='filter-target'><i class='bi bi-building text-dark me-1'></i>" . (!empty($s_row["Location"]) ? htmlspecialchars($s_row["Location"]) : "HQ") . "</td>";
+                                        echo "<td class='text-center'>
+                                                <div class='d-inline-flex gap-1'>
+                                                    <a href='?action=edit&id=" . htmlspecialchars($s_row["Administrator_ID"]) . "&tab=system_admins#editSection' class='btn btn-outline-primary btn-sm'><i class='bi bi-pencil'></i> Edit</a>
+                                                    <form method='POST' action='system_admin.php' onsubmit='return confirm(\"Are you sure you want to remove this System Administrator?\");' class='d-inline'>
+                                                        <input type='hidden' name='id3' value='" . htmlspecialchars($s_row["Administrator_ID"]) . "'>
+                                                        <input type='hidden' name='from_tab' value='system_admins'>
+                                                        <button type='submit' name='dela' class='btn btn-outline-danger btn-sm'><i class='bi bi-trash'></i> Delete</button>
+                                                    </form>
+                                                </div>
+                                              </td>";
+                                        echo "</tr>";
+                                    }
+                                } else {
+                                    echo "<tr><td colspan='5' class='text-center py-4 text-muted'>No additional System Administrators registered.</td></tr>";
+                                }
+                                ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Tab 3: Registered Donors -->
+                <div class="tab-pane fade <?php echo ($active_tab === 'donors') ? 'show active' : ''; ?>" id="donorsPane" role="tabpanel">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-filterable">
+                            <thead>
+                                <tr>
+                                    <th>Donor ID</th>
+                                    <th>Full Name</th>
+                                    <th>Email Address</th>
+                                    <th>Phone Number</th>
+                                    <th class="text-center">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php
+                                $donor_list_sql = "SELECT `Donor_ID`, `Fullname`, `Email_Address`, `Phone_Number` FROM `donors` ORDER BY `Donor_ID` ASC";
+                                $donor_list_res = $conn->query($donor_list_sql);
+
+                                if ($donor_list_res &&$donor_list_res->num_rows > 0) {
+                                    while ($d_row =$donor_list_res->fetch_assoc()) {
+                                        echo "<tr>";
+                                        echo "<td><span class='badge bg-light text-dark border'>#" . htmlspecialchars($d_row["Donor_ID"]) . "</span></td>";
+                                        echo "<td class='fw-semibold filter-target'>" . htmlspecialchars($d_row["Fullname"]) . "</td>";
+                                        echo "<td class='filter-target'>" . htmlspecialchars($d_row["Email_Address"]) . "</td>";
+                                        echo "<td class='filter-target'><i class='bi bi-telephone text-muted me-1'></i>" . htmlspecialchars($d_row["Phone_Number"]) . "</td>";
+                                        echo "<td class='text-center'>
+                                                <div class='d-inline-flex gap-1'>
+                                                    <a href='?action=edit_donor&id=" . htmlspecialchars($d_row["Donor_ID"]) . "&tab=donors#editSection' class='btn btn-outline-primary btn-sm'><i class='bi bi-pencil'></i> Edit</a>
+                                                    <form method='POST' action='system_admin.php' onsubmit='return confirm(\"Are you sure you want to remove this donor account?\");' class='d-inline'>
+                                                        <input type='hidden' name='donor_id' value='" . htmlspecialchars($d_row["Donor_ID"]) . "'>
+                                                        <button type='submit' name='del_donor' class='btn btn-outline-danger btn-sm'><i class='bi bi-trash'></i> Delete</button>
+                                                    </form>
+                                                </div>
+                                              </td>";
+                                        echo "</tr>";
+                                    }
+                                } else {
+                                    echo "<tr><td colspan='5' class='text-center py-4 text-muted'>No donors currently registered in the database.</td></tr>";
+                                }
+                                ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
             </div>
         </div>
 
@@ -517,6 +800,41 @@ $total_commodities =$commodity_res->fetch_assoc()['total'] ?? 0;
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // Update URL state without page reload when user changes tabs
+        function syncTabState(tabName) {
+            const url = new URL(window.location.href);
+            url.searchParams.set('tab', tabName);
+            url.searchParams.delete('action');
+            url.searchParams.delete('id');
+            window.history.replaceState({}, '', url.toString());
+        }
+
+        // Automatic smooth scroll to the edit card on load
+        document.addEventListener('DOMContentLoaded', function() {
+            const editSection = document.getElementById('editSection');
+            if (editSection) {
+                editSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+
+            // Real-Time Table Search Filter
+            const searchInput = document.getElementById('accountSearchInput');
+            if (searchInput) {
+                searchInput.addEventListener('input', function() {
+                    const filter = this.value.toLowerCase().trim();
+                    const tables = document.querySelectorAll('.table-filterable tbody');
+
+                    tables.forEach(tbody => {
+                        const rows = tbody.querySelectorAll('tr');
+                        rows.forEach(row => {
+                            const text = row.textContent.toLowerCase();
+                            row.style.display = text.includes(filter) ? '' : 'none';
+                        });
+                    });
+                });
+            }
+        });
+
+        // Print Report
         function printAuditReport() {
             const tableHtml = document.getElementById("auditTable").outerHTML;
             const printWin = window.open("", "", "height=700,width=950");

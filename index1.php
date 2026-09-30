@@ -2,7 +2,7 @@
 session_start();
 require_once 'dbconnection.inc.php';
 
-// Check Area Admin session
+// Verify Area Admin authentication
 $email = $_SESSION['Email1'] ?? $_SESSION['Email'] ?? null;
 if (!$email) {
     header("Location: login_page.html");
@@ -27,22 +27,41 @@ if ($row) {
     exit();
 }
 
-// Handle manual dropdown fallback status update
+// PRG Flash Messages
+$flash_success = $_SESSION['flash_success'] ?? null;
+$flash_error   = $_SESSION['flash_error'] ?? null;
+unset($_SESSION['flash_success'], $_SESSION['flash_error']);
+
+// Handle manual dropdown status override
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
-    $donation_id = intval($_POST['donation_id']);
-    $new_status  = trim($_POST['status']);
+    $donation_id = intval($_POST['donation_id'] ?? 0);
+    $new_status  = trim($_POST['status'] ?? '');
 
     $allowed = ['Pending Pickup', 'Collected', 'Delivered'];
-    if (in_array($new_status, $allowed)) {
+    if (in_array($new_status, $allowed) && $donation_id > 0) {
         $stmt_upd = $conn->prepare("UPDATE `goods_donated` SET `Status` = ? WHERE `Dontation_ID` = ?");
         $stmt_upd->bind_param("si", $new_status, $donation_id);
         $stmt_upd->execute();
         $stmt_upd->close();
 
-        header("Location: index1.php?status_updated=success");
-        exit();
+        $_SESSION['flash_success'] = "Consignment #{$donation_id} status updated to '{$new_status}' successfully.";
+    } else {
+        $_SESSION['flash_error'] = "Invalid status update payload.";
     }
+    header("Location: index1.php");
+    exit();
 }
+
+// Hub Telemetry Metrics
+$stmt_m1 = $conn->prepare("SELECT COUNT(*) AS total FROM `commodity` WHERE `Area_Administrator` = ?");
+$stmt_m1->bind_param("i", $admin_id);
+$stmt_m1->execute();
+$stat_needs = $stmt_m1->get_result()->fetch_assoc()['total'] ?? 0;
+$stmt_m1->close();
+
+$stat_pending = $conn->query("SELECT COUNT(*) AS total FROM `goods_donated` WHERE `Location` LIKE '%$admin_location%' AND `Status` = 'Pending Pickup'")->fetch_assoc()['total'] ?? 0;
+$stat_collected = $conn->query("SELECT COUNT(*) AS total FROM `goods_donated` WHERE `Location` LIKE '%$admin_location%' AND `Status` = 'Collected'")->fetch_assoc()['total'] ?? 0;
+$stat_delivered = $conn->query("SELECT COUNT(*) AS total FROM `goods_donated` WHERE `Location` LIKE '%$admin_location%' AND `Status` = 'Delivered'")->fetch_assoc()['total'] ?? 0;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -57,11 +76,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.4.1/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 
-    <!-- HTML5 QR Camera Scanner via CDN -->
+    <!-- QR Scanner CDN -->
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
     <style>
@@ -98,8 +116,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
         .hero-banner {
             background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #064e3b 100%);
             color: #ffffff;
-            padding: 3.5rem 0;
-            margin-bottom: 2.5rem;
+            padding: 3.25rem 0;
+            margin-bottom: 2.25rem;
             border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         }
 
@@ -108,25 +126,66 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
             border: 1px solid var(--card-border);
             border-radius: 16px;
             box-shadow: 0 8px 25px rgba(15, 23, 42, 0.04);
-            padding: 2.25rem;
-            margin-bottom: 2.5rem;
+            padding: 2rem;
+            margin-bottom: 2.25rem;
+        }
+
+        /* Telemetry Cards */
+        .stat-widget {
+            background: #ffffff;
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
+            padding: 1.5rem 1.25rem;
+            box-shadow: 0 4px 15px rgba(15, 23, 42, 0.03);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            height: 100%;
+        }
+        .stat-widget:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 20px rgba(15, 23, 42, 0.07);
+        }
+        .stat-icon-wrap {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            background-color: var(--primary-subtle);
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+            margin-bottom: 0.85rem;
+        }
+        .stat-widget h6 {
+            font-size: 0.8rem;
+            color: var(--gray-body);
+            text-transform: uppercase;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.25rem;
+        }
+        .stat-widget .stat-number {
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: var(--dark);
+            line-height: 1;
+            margin-bottom: 0;
         }
 
         .table thead th {
             background-color: #f1f5f9;
             color: #334155;
             font-weight: 600;
-            font-size: 0.85rem;
+            font-size: 0.825rem;
             text-transform: uppercase;
             letter-spacing: 0.5px;
             border-bottom: 2px solid var(--card-border);
-            padding: 0.9rem 1rem;
+            padding: 0.85rem 1rem;
         }
-
         .table tbody td {
             vertical-align: middle;
-            font-size: 0.92rem;
-            padding: 0.9rem 1rem;
+            font-size: 0.9rem;
+            padding: 0.85rem 1rem;
             color: #1e293b;
         }
 
@@ -138,6 +197,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
             border-radius: 8px;
             padding: 0.55rem 1.25rem;
             transition: all 0.2s;
+            text-decoration: none;
+            display: inline-block;
         }
         .btn-primary-custom:hover {
             background-color: var(--primary-hover);
@@ -160,19 +221,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
             color: var(--dark);
         }
 
+        /* Status Filter Chips */
+        .filter-chip {
+            border: 1px solid var(--card-border);
+            background: #ffffff;
+            color: var(--gray-body);
+            padding: 0.35rem 0.85rem;
+            border-radius: 50px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .filter-chip:hover, .filter-chip.active {
+            background: var(--primary);
+            color: #ffffff;
+            border-color: var(--primary);
+        }
+
         /* Status Badges */
         .status-badge {
             font-size: 0.775rem;
             font-weight: 600;
             padding: 0.35rem 0.75rem;
             border-radius: 50px;
-            transition: all 0.3s ease;
+            display: inline-block;
         }
         .status-pending { background-color: #fef3c7; color: #92400e; }
         .status-collected { background-color: #e0f2fe; color: #0369a1; }
         .status-delivered { background-color: #dcfce7; color: #166534; }
 
-        /* Camera Scanner Modal Styles */
+        /* Camera Viewfinder */
         #modal-qr-reader {
             width: 100%;
             border-radius: 12px;
@@ -180,43 +259,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
             border: 2px dashed #cbd5e1;
             background-color: #f8fafc;
         }
-        #modal-qr-reader video {
-            width: 100% !important;
-            height: auto !important;
+
+        .search-input-box {
+            position: relative;
+        }
+        .search-input-box i {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--gray-body);
+            pointer-events: none;
+        }
+        .search-input-box input {
+            padding-left: 36px;
             border-radius: 8px;
+            border: 1px solid var(--card-border);
+            font-size: 0.875rem;
         }
 
         .site-footer {
             background-color: #0b1120;
             color: #94a3b8;
             font-size: 0.9rem;
-            padding: 3.5rem 0 1.5rem 0;
+            padding: 3rem 0 1.5rem 0;
             margin-top: 5rem;
         }
     </style>
 </head>
 
 <body>
-    <!-- Top Navigation -->
+    <!-- Navbar -->
     <nav class="navbar navbar-expand-lg sticky-top">
         <div class="container">
-            <a href="index1.php" class="brand-title">Food<span>Trace</span> <span class="badge bg-success-subtle text-success fs-6 fw-semibold ms-2">Area Administrator</span></a>
+            <a href="index1.php" class="brand-title">Food<span>Trace</span> <span class="badge bg-success-subtle text-success border border-success-subtle fs-6 fw-semibold ms-2">Area Administrator</span></a>
             <div class="ms-auto d-flex align-items-center gap-3">
-                <span class="small text-muted d-none d-md-inline"><i class="bi bi-geo-alt-fill text-success me-1"></i><?php echo htmlspecialchars($admin_location); ?> Hub</span>
+                <span class="small text-muted d-none d-md-inline"><i class="bi bi-geo-alt-fill text-success me-1"></i><?php echo htmlspecialchars($admin_location); ?> Regional Hub</span>
                 <a href="homepage.html" class="btn btn-outline-secondary btn-sm">Home</a>
                 <a href="logout.php" class="btn btn-outline-danger btn-sm"><i class="bi bi-box-arrow-right me-1"></i>Logout</a>
             </div>
         </div>
     </nav>
 
-    <!-- Hero Banner -->
+    <!-- Hero -->
     <header class="hero-banner">
         <div class="container">
             <div class="row align-items-center">
                 <div class="col-lg-8">
-                    <span class="badge bg-success mb-2 px-3 py-2 fw-semibold">Regional Operations Center</span>
+                    <span class="badge bg-success mb-2 px-3 py-1 fw-semibold">Regional Operations Center</span>
                     <h2 class="fw-bold mb-2">Welcome, <?php echo htmlspecialchars($admin_fullname); ?></h2>
-                    <p class="text-white-50 mb-0">Managing Sub-County: <strong class="text-white"><?php echo htmlspecialchars($admin_location); ?></strong>. Declare local supply needs and verify consignment drop-offs using camera QR inspection.</p>
+                    <p class="text-white-50 mb-0">Operational Zone: <strong class="text-white"><?php echo htmlspecialchars($admin_location); ?> Hub</strong>. Issue commodity supply requests and perform live optical QR intakes.</p>
                 </div>
             </div>
         </div>
@@ -224,29 +316,69 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
 
     <div class="container">
         
-        <!-- Notifications -->
-        <div id="commodity-alert" class="alert alert-success alert-dismissible fade show d-none mb-4" role="alert">
-            <i class="bi bi-check-circle-fill me-2 fs-5 align-middle"></i>
-            <strong>Commodity Added Successfully!</strong> The new supply deficit has been published and is now visible to donors.
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        <!-- Flash Notifications -->
+        <?php if ($flash_success): ?>
+            <div class="alert alert-success alert-dismissible fade show mb-4" role="alert">
+                <i class="bi bi-check-circle-fill me-2 fs-5 align-middle"></i>
+                <?php echo $flash_success; ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($flash_error): ?>
+            <div class="alert alert-danger alert-dismissible fade show mb-4" role="alert">
+                <i class="bi bi-exclamation-triangle-fill me-2 fs-5 align-middle"></i>
+                <?php echo $flash_error; ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        <?php endif; ?>
+
+        <!-- Hub Telemetry Metric Cards -->
+        <div class="row g-4 mb-4">
+            <div class="col-lg-3 col-6">
+                <div class="stat-widget">
+                    <div class="stat-icon-wrap"><i class="bi bi-card-checklist"></i></div>
+                    <h6>Active Area Needs</h6>
+                    <p class="stat-number"><?php echo htmlspecialchars($stat_needs); ?></p>
+                </div>
+            </div>
+            <div class="col-lg-3 col-6">
+                <div class="stat-widget">
+                    <div class="stat-icon-wrap text-warning" style="background:#fef3c7;"><i class="bi bi-hourglass-split"></i></div>
+                    <h6>Pending Pickups</h6>
+                    <p class="stat-number"><?php echo htmlspecialchars($stat_pending); ?></p>
+                </div>
+            </div>
+            <div class="col-lg-3 col-6">
+                <div class="stat-widget">
+                    <div class="stat-icon-wrap text-info" style="background:#e0f2fe;"><i class="bi bi-box-seam-fill"></i></div>
+                    <h6>Depot Intakes (Collected)</h6>
+                    <p class="stat-number"><?php echo htmlspecialchars($stat_collected); ?></p>
+                </div>
+            </div>
+            <div class="col-lg-3 col-6">
+                <div class="stat-widget">
+                    <div class="stat-icon-wrap text-success" style="background:#dcfce7;"><i class="bi bi-check-circle-fill"></i></div>
+                    <h6>Beneficiaries Reached</h6>
+                    <p class="stat-number"><?php echo htmlspecialchars($stat_delivered); ?></p>
+                </div>
+            </div>
         </div>
 
-        <div id="status-alert" class="alert alert-success alert-dismissible fade show d-none mb-4" role="alert">
-            <i class="bi bi-check-circle-fill me-2 fs-5 align-middle"></i>
-            <strong>Status Updated!</strong> The consignment milestone has been updated in database records.
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-
-        <!-- Section 1: Commodities Declared for Area -->
+        <!-- Section 1: Declared Commodities in Hub -->
         <div class="section-card">
-            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-2">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
                 <div>
                     <h4 class="fw-bold mb-1">Declared Commodities in Your Area</h4>
                     <p class="text-muted small mb-0">Active supply requests listed for <?php echo htmlspecialchars($admin_location); ?></p>
                 </div>
-                <div class="d-flex gap-2">
-                    <a href="commodity.php" class="btn btn-primary-custom btn-sm"><i class="bi bi-plus-circle me-1"></i> Add New Commodity</a>
-                    <button onclick="printTableData('printTable1', 'Commodities in Area')" class="btn btn-print btn-sm"><i class="bi bi-printer me-1"></i> Print</button>
+                <div class="d-flex align-items-center gap-2">
+                    <div class="search-input-box">
+                        <i class="bi bi-search"></i>
+                        <input type="text" id="commSearchInput" class="form-control form-control-sm" placeholder="Filter commodities...">
+                    </div>
+                    <a href="commodity.php" class="btn btn-primary-custom btn-sm text-nowrap"><i class="bi bi-plus-circle me-1"></i> Add Commodity</a>
+                    <button onclick="printTableData('printTable1', 'Commodities in Area')" class="btn btn-print btn-sm"><i class="bi bi-printer"></i></button>
                 </div>
             </div>
 
@@ -262,7 +394,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
                             <th>Date Added</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="commTableBody">
                         <?php
                         $stmt_c = $conn->prepare("
                             SELECT c.Commodity_ID, c.Area_Administrator, a.Location, c.Commodity, c.Quantity, c.Date_Added
@@ -271,16 +403,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
                             WHERE c.Area_Administrator = ?
                             ORDER BY c.Commodity_ID DESC
                         ");
-                        $stmt_c->bind_param("i", $admin_id);$stmt_c->execute();
-                        $res_c =$stmt_c->get_result();
+                        $stmt_c->bind_param("i", $admin_id);
+                        $stmt_c->execute();
+                        $res_c = $stmt_c->get_result();
 
-                        if ($res_c &&$res_c->num_rows > 0) {
-                            while ($row_c =$res_c->fetch_assoc()) {
+                        if ($res_c && $res_c->num_rows > 0) {
+                            while ($row_c = $res_c->fetch_assoc()) {
                                 echo "<tr>";
                                 echo "<td><span class='badge bg-light text-dark border'>#" . htmlspecialchars($row_c["Commodity_ID"]) . "</span></td>";
                                 echo "<td>" . htmlspecialchars($row_c["Area_Administrator"]) . "</td>";
                                 echo "<td><i class='bi bi-geo-alt text-success me-1'></i>" . htmlspecialchars($row_c["Location"]) . "</td>";
-                                echo "<td class='fw-semibold'>" . htmlspecialchars($row_c["Commodity"]) . "</td>";
+                                echo "<td class='fw-semibold filter-cell'>" . htmlspecialchars($row_c["Commodity"]) . "</td>";
                                 echo "<td><span class='badge bg-secondary-subtle text-secondary-emphasis'>" . htmlspecialchars($row_c["Quantity"]) . "</span></td>";
                                 echo "<td class='text-muted small'>" . htmlspecialchars($row_c["Date_Added"]) . "</td>";
                                 echo "</tr>";
@@ -303,20 +436,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
             </div>
         </div>
 
-        <!-- Section 2: Goods Donated & Live QR Camera Scanner -->
+        <!-- Section 2: Consignment Inspection & Smart Auto-Progression -->
         <div class="section-card">
-            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-2">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-3 gap-3">
                 <div>
                     <h4 class="fw-bold mb-1">List of Goods Donated (Consignments)</h4>
                     <p class="text-muted small mb-0">Verify intake and final delivery automatically using live camera QR inspection</p>
                 </div>
                 <div class="d-flex gap-2">
-                    <button class="btn btn-primary-custom btn-sm" data-bs-toggle="modal" data-bs-target="#qrScanModal">
+                    <button class="btn btn-primary-custom btn-sm text-nowrap" data-bs-toggle="modal" data-bs-target="#qrScanModal">
                         <i class="bi bi-camera me-1"></i> Scan Consignment QR
                     </button>
                     <button onclick="printTableData('printTable2', 'List of Goods Donated')" class="btn btn-print btn-sm">
-                        <i class="bi bi-printer me-1"></i> Print
+                        <i class="bi bi-printer"></i>
                     </button>
+                </div>
+            </div>
+
+            <!-- Modern Filter Controls: Search Bar + Status Filter Chips -->
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
+                <div class="d-flex flex-wrap gap-1">
+                    <button class="filter-chip active" onclick="filterConsignments('all', this)">All</button>
+                    <button class="filter-chip" onclick="filterConsignments('Pending Pickup', this)">Pending Pickup</button>
+                    <button class="filter-chip" onclick="filterConsignments('Collected', this)">Collected (In Depot)</button>
+                    <button class="filter-chip" onclick="filterConsignments('Delivered', this)">Delivered</button>
+                </div>
+                <div class="search-input-box">
+                    <i class="bi bi-search"></i>
+                    <input type="text" id="consignSearchInput" class="form-control form-control-sm" placeholder="Search consignments...">
                 </div>
             </div>
 
@@ -334,7 +481,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
                             <th>Manual Override</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="consignTableBody">
                         <?php
                         $sql_donations = "
                             SELECT gd.Dontation_ID, gd.Commodity_ID, gd.Donor_ID, c.Commodity AS Commodity_Name, 
@@ -345,31 +492,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
                         ";
                         $res_donations = $conn->query($sql_donations);
 
-                        if ($res_donations &&$res_donations->num_rows > 0) {
-                            while ($row_d = $res_donations->fetch_assoc()) {$unit = '';
-                                if (preg_match('/^\d+(\.\d+)?\s*([a-zA-Z]+)?$/', $row_d['Commodity_Qty_Str'],$matches)) {
-                                    $unit =$matches[2] ?? '';
+                        if ($res_donations && $res_donations->num_rows > 0) {
+                            while ($row_d = $res_donations->fetch_assoc()) {
+                                $unit = '';
+                                if (preg_match('/^\d+(\.\d+)?\s*([a-zA-Z]+)?$/', $row_d['Commodity_Qty_Str'], $matches)) {
+                                    $unit = $matches[2] ?? '';
                                 }
 
-                                $status =$row_d["Status"];
+                                $status = $row_d["Status"];
                                 $badge_class = "status-pending";
                                 if ($status === "Collected") $badge_class = "status-collected";
                                 if ($status === "Delivered") $badge_class = "status-delivered";
 
-                                echo "<tr id='row-donation-" . htmlspecialchars($row_d["Dontation_ID"]) . "'>";
+                                echo "<tr id='row-donation-" . htmlspecialchars($row_d["Dontation_ID"]) . "' data-status='" . htmlspecialchars($status) . "'>";
                                 echo "<td><strong>#" . htmlspecialchars($row_d["Dontation_ID"]) . "</strong></td>";
-                                echo "<td class='fw-semibold'>" . htmlspecialchars($row_d["Commodity_Name"]) . "</td>";
-                                echo "<td>Donor #" . htmlspecialchars($row_d["Donor_ID"]) . "</td>";
+                                echo "<td class='fw-semibold consign-cell'>" . htmlspecialchars($row_d["Commodity_Name"]) . "</td>";
+                                echo "<td class='consign-cell'>Donor #" . htmlspecialchars($row_d["Donor_ID"]) . "</td>";
                                 echo "<td>" . htmlspecialchars($row_d["Donated_Qty"]) . " " . htmlspecialchars($unit) . "</td>";
                                 echo "<td class='text-muted small'>" . htmlspecialchars($row_d["Date_Donated"]) . "</td>";
-                                echo "<td>" . htmlspecialchars($row_d["Location"]) . "</td>";
+                                echo "<td class='consign-cell'>" . htmlspecialchars($row_d["Location"]) . "</td>";
                                 echo "<td><span class='status-badge {$badge_class}' id='badge-status-" . htmlspecialchars($row_d["Dontation_ID"]) . "'>{$status}</span></td>";
                                 
-                                // Manual dropdown update fallback
                                 echo "<td>
                                         <form method='POST' action='index1.php' class='d-flex align-items-center gap-1'>
                                             <input type='hidden' name='donation_id' value='" . htmlspecialchars($row_d["Dontation_ID"]) . "'>
-                                            <select name='status' class='form-select form-select-sm' style='max-width: 140px;' id='select-status-" . htmlspecialchars($row_d["Dontation_ID"]) . "'>
+                                            <select name='status' class='form-select form-select-sm' style='max-width: 135px;' id='select-status-" . htmlspecialchars($row_d["Dontation_ID"]) . "'>
                                                 <option value='Pending Pickup'" . ($status === 'Pending Pickup' ? ' selected' : '') . ">Pending Pickup</option>
                                                 <option value='Collected'" . ($status === 'Collected' ? ' selected' : '') . ">Collected</option>
                                                 <option value='Delivered'" . ($status === 'Delivered' ? ' selected' : '') . ">Delivered</option>
@@ -393,26 +540,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
     <!-- Live QR Camera Scanner Modal -->
     <div class="modal fade" id="qrScanModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content border-0 shadow">
+            <div class="modal-content border-0 shadow-lg">
                 <div class="modal-header bg-dark text-white">
                     <h5 class="modal-title fw-bold"><i class="bi bi-camera-fill text-success me-2"></i>Consignment QR Checkpoint</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" onclick="stopScannerModal()"></button>
                 </div>
                 <div class="modal-body p-4">
                     
-                    <!-- Smart Auto-Progression Badge -->
                     <div class="alert alert-light border small py-2 mb-3 d-flex align-items-center">
-                        <i class="bi bi-cpu text-success fs-5 me-2"></i>
+                        <i class="bi bi-cpu text-success fs-4 me-2"></i>
                         <div>
                             <strong>Smart Auto-Progression Active:</strong><br>
-                            <span class="text-muted">1st scan logs <b>Collected</b> &bull; 2nd scan logs <b>Delivered</b></span>
+                            <span class="text-muted">1st scan marks <b>Collected</b> &bull; 2nd scan marks <b>Delivered</b></span>
                         </div>
                     </div>
 
-                    <!-- Live Viewfinder Canvas -->
                     <div id="modal-qr-reader" class="mb-3 p-3 text-center">
                         <i class="bi bi-camera fs-2 text-muted d-block mb-1"></i>
-                        <span class="small text-muted">Click below to activate device camera</span>
+                        <span class="small text-muted">Click below to activate device optical sensor</span>
                     </div>
 
                     <div id="scanAlert" class="alert py-2 small d-none mb-3"></div>
@@ -422,7 +567,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
                         <button id="btnModalStopScan" class="btn btn-outline-secondary w-100 py-2 d-none" onclick="stopScannerModal()"><i class="bi bi-stop-circle me-1"></i> Stop Camera</button>
                     </div>
 
-                    <!-- Manual Fallback Inside Scanner Modal -->
+                    <!-- Manual Verification Failsafe -->
                     <div class="mt-4 pt-3 border-top">
                         <label class="small text-muted d-block mb-2">Manual Consignment Verification (Failsafe):</label>
                         <div class="input-group">
@@ -436,28 +581,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
     </div>
 
     <!-- Footer -->
-    <footer class="site-footer">
-        <div class="container text-center">
+    <footer class="site-footer text-center">
+        <div class="container">
             <p class="mb-0 small text-white-50">&copy; Food Aid Traceability System. All Rights Reserved.</p>
         </div>
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const urlParams = new URLSearchParams(window.location.search);
-            if (urlParams.get('commodity') === 'success') {
-                const commAlert = document.getElementById('commodity-alert');
-                if (commAlert) commAlert.classList.remove('d-none');
-            }
-            if (urlParams.get('status_updated') === 'success') {
-                const statAlert = document.getElementById('status-alert');
-                if (statAlert) statAlert.classList.remove('d-none');
-            }
-        });
-
-        // Synthesizer Audio Feedback (Zero external audio file dependencies)
-        function playBeep(isSuccess) {
+        // Synthesizer Audio + Native Haptic Vibration Feedback
+        function triggerScanFeedback(isSuccess) {
+            // 1. Audio Chime (Web Audio API)
             try {
                 const ctx = new (window.AudioContext || window.webkitAudioContext)();
                 const osc = ctx.createOscillator();
@@ -482,6 +616,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
                     osc.stop(ctx.currentTime + 0.3);
                 }
             } catch(e) {}
+
+            // 2. Tactile Haptic Vibration for Mobile Devices
+            if (window.navigator && window.navigator.vibrate) {
+                if (isSuccess) {
+                    window.navigator.vibrate([100, 50, 100]); // double pulse
+                } else {
+                    window.navigator.vibrate(250); // long buzz
+                }
+            }
+        }
+
+        // Live Table Filters
+        document.addEventListener('DOMContentLoaded', function() {
+            // Commodities search
+            const commSearch = document.getElementById('commSearchInput');
+            if (commSearch) {
+                commSearch.addEventListener('input', function() {
+                    const filter = this.value.toLowerCase().trim();
+                    const rows = document.querySelectorAll('#commTableBody tr');
+                    rows.forEach(r => {
+                        r.style.display = r.textContent.toLowerCase().includes(filter) ? '' : 'none';
+                    });
+                });
+            }
+
+            // Consignments search
+            const consignSearch = document.getElementById('consignSearchInput');
+            if (consignSearch) {
+                consignSearch.addEventListener('input', function() {
+                    const filter = this.value.toLowerCase().trim();
+                    const rows = document.querySelectorAll('#consignTableBody tr');
+                    rows.forEach(r => {
+                        r.style.display = r.textContent.toLowerCase().includes(filter) ? '' : 'none';
+                    });
+                });
+            }
+        });
+
+        // Filter chips for Consignment Table
+        function filterConsignments(status, btnElement) {
+            document.querySelectorAll('.filter-chip').forEach(b => b.classList.remove('active'));
+            btnElement.classList.add('active');
+
+            const rows = document.querySelectorAll('#consignTableBody tr');
+            rows.forEach(row => {
+                const rowStatus = row.getAttribute('data-status');
+                if (status === 'all' || rowStatus === status) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
         }
 
         // Camera QR Scanner Modal Handling
@@ -557,30 +743,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
-                    playBeep(true);
+                    triggerScanFeedback(true);
                     showScanAlert(`Success! Consignment #${data.consignment.id} (${data.consignment.item}): ${data.consignment.old_status} &rarr; <strong>${data.consignment.new_status}</strong>`, 'success');
                     
-                    // Update table in real time without reloading
+                    const row = document.getElementById(`row-donation-${data.consignment.id}`);
                     const badge = document.getElementById(`badge-status-${data.consignment.id}`);
                     const select = document.getElementById(`select-status-${data.consignment.id}`);
+                    if (row) row.setAttribute('data-status', data.consignment.new_status);
                     if (badge) {
                         badge.textContent = data.consignment.new_status;
                         badge.className = 'status-badge ' + (data.consignment.new_status === 'Delivered' ? 'status-delivered' : 'status-collected');
                     }
-                    if (select) {
-                        select.value = data.consignment.new_status;
-                    }
+                    if (select) select.value = data.consignment.new_status;
                 } else if (data.already_fulfilled) {
-                    playBeep(false);
+                    triggerScanFeedback(false);
                     showScanAlert(`<i class="bi bi-shield-slash-fill me-1"></i> ${data.message}`, 'warning');
                 } else {
-                    playBeep(false);
+                    triggerScanFeedback(false);
                     showScanAlert(data.message, 'danger');
                 }
-                setTimeout(() => { isProcessingScan = false; }, 2500); // 2.5s cooldown
+                setTimeout(() => { isProcessingScan = false; }, 2500);
             })
             .catch(err => {
-                playBeep(false);
+                triggerScanFeedback(false);
                 showScanAlert('Network error during scan verification: ' + err, 'danger');
                 isProcessingScan = false;
             });
@@ -592,7 +777,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
             scanAlert.classList.remove('d-none');
         }
 
-        // Table Printer
         function printTableData(tableId, title) {
             const divToPrint = document.getElementById(tableId);
             const win = window.open("", "", "height=700,width=900");
@@ -610,3 +794,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
 </body>
 
 </html>
+<?php
+$conn->close();
+?>

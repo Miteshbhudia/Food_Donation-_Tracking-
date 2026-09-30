@@ -3,381 +3,374 @@
 
 <head>
     <meta charset="utf-8">
-    <title>Food Aid Traceability System - Login</title>
+    <title>Login - Food Aid Traceability System</title>
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
-    <meta content="Food Distribution System, Login, Account, Donor Login, Admin Login" name="keywords">
-    <meta content="Login to your Food Distribution System account as a donor, area administrator, or system administrator." name="description">
 
     <link href="img/favicon.ico" rel="icon">
-
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.4.1/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 
     <style>
         :root {
-            --primary: #16a34a;       /* Clean Emerald Green */
-            --primary-hover: #15803d; /* Darker Emerald */
-            --primary-subtle: #dcfce7;/* Soft green badge/alert */
-            --dark: #0f172a;          /* Slate 900 */
-            --gray-body: #64748b;     /* Slate 500 */
-            --bg-light: #f8fafc;      /* Clean neutral slate background */
-            --card-border: #e2e8f0;   /* Slate 200 border */
+            --primary: #16a34a;
+            --primary-hover: #15803d;
+            --primary-subtle: #dcfce7;
+            --dark: #0f172a;
+            --gray-body: #64748b;
+            --bg-light: #f8fafc;
+            --card-border: #e2e8f0;
         }
 
-        body {
+        * {
+            box-sizing: border-box;
+        }
+
+        html, body {
+            height: 100vh;
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* Guarantees zero vertical scrolling */
             font-family: 'Poppins', sans-serif;
             background-color: var(--bg-light);
             color: var(--dark);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
         }
 
-        /* Top Brand Header */
-        .brand-header {
+        .auth-layout {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* Streamlined Navbar */
+        .auth-nav {
             background-color: #ffffff;
             border-bottom: 1px solid var(--card-border);
-            padding: 1.25rem 0;
+            padding: 0.65rem 1.5rem;
+            flex-shrink: 0;
         }
 
         .brand-title {
-            font-size: 1.75rem;
+            font-size: 1.35rem;
             font-weight: 700;
             color: var(--primary);
             text-decoration: none;
             letter-spacing: -0.5px;
         }
-        .brand-title span {
-            color: var(--dark);
-        }
+        .brand-title span { color: var(--dark); }
 
-        /* Navbar */
-        .navbar {
-            background-color: #ffffff;
-            border-bottom: 1px solid var(--card-border);
-        }
-        .navbar-nav .nav-link {
-            color: var(--gray-body);
+        .nav-links a {
+            text-decoration: none;
+            font-size: 0.875rem;
             font-weight: 500;
-            padding: 0.6rem 1.2rem;
+            color: var(--gray-body);
+            padding: 0.35rem 0.75rem;
             border-radius: 6px;
-            transition: all 0.2s ease;
+            transition: all 0.2s;
         }
-        .navbar-nav .nav-link:hover {
+        .nav-links a.active, .nav-links a:hover {
             color: var(--primary);
-        }
-        .navbar-nav .nav-link.active {
-            color: var(--primary);
-            font-weight: 600;
             background-color: var(--primary-subtle);
         }
 
-        /* Login Card */
-        .login-wrapper {
-            flex: 1 0 auto;
+        /* Viewport-Centered Main Stage */
+        .auth-stage {
+            flex: 1;
             display: flex;
             align-items: center;
-            padding: 3.5rem 0;
+            justify-content: center;
+            padding: 1rem;
+            background: radial-gradient(circle at 50% 30%, rgba(220, 252, 231, 0.45) 0%, rgba(248, 250, 252, 1) 70%);
         }
 
-        .login-card {
-            max-width: 500px;
+        .auth-card {
             width: 100%;
-            margin: 0 auto;
+            max-width: 420px;
             background: #ffffff;
             border: 1px solid var(--card-border);
             border-radius: 16px;
             box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
-            padding: 2.5rem;
+            padding: 1.75rem 2rem;
         }
 
-        .login-card h2 {
-            font-size: 1.5rem;
+        .auth-header h3 {
+            font-size: 1.35rem;
             font-weight: 700;
+            margin-bottom: 0.2rem;
             color: var(--dark);
-            margin-bottom: 0.25rem;
         }
 
-        /* Segmented Role Tabs */
-        .login-tabs {
-            background-color: #f1f5f9;
-            padding: 4px;
-            border-radius: 10px;
-            border: none;
+        .auth-header p {
+            font-size: 0.8rem;
+            color: var(--gray-body);
+            margin-bottom: 1rem;
+        }
+
+        /* Modern Segmented Role Selector */
+        .role-switch-container {
             display: flex;
-            margin-bottom: 1.75rem;
+            background-color: #f1f5f9;
+            border-radius: 10px;
+            padding: 3px;
+            margin-bottom: 1.15rem;
+            gap: 2px;
         }
-        .login-tabs .nav-item {
+
+        .role-btn {
             flex: 1;
-        }
-        .login-tabs .nav-link {
-            width: 100%;
-            text-align: center;
             border: none;
-            border-radius: 8px;
-            padding: 8px 12px;
-            font-size: 0.85rem;
+            background: transparent;
+            padding: 0.45rem 0.25rem;
+            font-size: 0.775rem;
             font-weight: 600;
             color: var(--gray-body);
-            background: transparent;
+            border-radius: 8px;
+            cursor: pointer;
             transition: all 0.2s ease;
-        }
-        .login-tabs .nav-link.active {
-            background-color: #ffffff;
-            color: var(--primary);
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+            text-align: center;
         }
 
-        /* Form Inputs */
+        .role-btn.active {
+            background-color: #ffffff;
+            color: var(--primary);
+            box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
+        }
+
+        /* Form Labels & Links */
         .form-label {
-            font-size: 0.85rem;
+            font-size: 0.775rem;
             font-weight: 600;
             color: #334155;
-            margin-bottom: 0.4rem;
+            margin-bottom: 0;
         }
+
+        .forgot-link {
+            font-size: 0.75rem;
+            color: var(--primary);
+            font-weight: 500;
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+        .forgot-link:hover {
+            color: var(--primary-hover);
+            text-decoration: underline;
+        }
+
         .form-control {
             border: 1px solid var(--card-border);
             border-radius: 8px;
-            padding: 0.75rem 1rem;
-            font-size: 0.925rem;
+            padding: 0.55rem 0.85rem;
+            font-size: 0.875rem;
             transition: border-color 0.2s, box-shadow 0.2s;
         }
+
         .form-control:focus {
             border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.15);
+            box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.12);
         }
 
-        .login-btn {
+        .input-group-password {
+            position: relative;
+        }
+        .password-toggle-btn {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            border: none;
+            background: none;
+            color: var(--gray-body);
+            cursor: pointer;
+            padding: 0;
+            font-size: 1rem;
+            z-index: 5;
+        }
+
+        .btn-auth-submit {
             background-color: var(--primary);
             border: none;
             color: #ffffff;
             font-weight: 600;
-            font-size: 0.95rem;
-            padding: 0.75rem;
+            font-size: 0.925rem;
+            padding: 0.65rem;
             border-radius: 8px;
             transition: all 0.2s ease;
+            margin-top: 0.75rem;
+            width: 100%;
         }
-        .login-btn:hover {
+
+        .btn-auth-submit:hover {
             background-color: var(--primary-hover);
             color: #ffffff;
             transform: translateY(-1px);
         }
 
-        .auth-footer-links {
-            font-size: 0.875rem;
-            margin-top: 1.5rem;
+        .auth-footer {
+            margin-top: 0.85rem;
+            font-size: 0.775rem;
+            color: var(--gray-body);
             text-align: center;
         }
-        .auth-footer-links a {
+
+        .auth-footer a {
             color: var(--primary);
             text-decoration: none;
-            font-weight: 500;
+            font-weight: 600;
         }
-        .auth-footer-links a:hover {
+        .auth-footer a:hover {
             text-decoration: underline;
         }
 
-        /* Footer */
-        .site-footer {
-            background-color: var(--dark);
-            color: #94a3b8;
-            font-size: 0.9rem;
-            padding-top: 3.5rem;
-            padding-bottom: 1.5rem;
-            flex-shrink: 0;
-        }
-        .site-footer h5 {
-            color: #ffffff;
-            font-weight: 600;
-            font-size: 1rem;
-            margin-bottom: 1.25rem;
-        }
-        .site-footer a {
-            color: #cbd5e1;
-            text-decoration: none;
-            transition: color 0.2s;
-        }
-        .site-footer a:hover {
-            color: var(--primary);
+        .compact-alert {
+            font-size: 0.775rem;
+            padding: 0.45rem 0.75rem;
+            border-radius: 8px;
+            margin-bottom: 0.85rem;
         }
     </style>
 </head>
 
 <body>
-    <!-- Brand Header -->
-    <div class="brand-header text-center">
-        <div class="container">
+    <div class="auth-layout">
+        <!-- Compact Header Navigation -->
+        <nav class="auth-nav d-flex align-items-center justify-content-between">
             <a href="homepage.html" class="brand-title">Food<span>Trace</span></a>
-        </div>
-    </div>
-
-    <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg">
-        <div class="container justify-content-center">
-            <div class="navbar-nav flex-row gap-2">
-                <a href="homepage.html" class="nav-link">Home</a>
-                <a href="login_page.html" class="nav-link active">Login</a>
-                <a href="reg_donor.php" class="nav-link">Register</a>
+            <div class="nav-links d-flex align-items-center gap-1">
+                <a href="homepage.html">Home</a>
+                <a href="login_page.html" class="active">Login</a>
+                <a href="reg_donor.php">Register</a>
             </div>
-        </div>
-    </nav>
+        </nav>
 
-    <!-- Main Content -->
-    <div class="login-wrapper">
-        <div class="container">
-            <div class="login-card">
+        <!-- Centered Stage -->
+        <main class="auth-stage">
+            <div class="auth-card">
                 
-                <!-- Dynamic Alert: Registration Success -->
-                <div id="signup-alert" class="alert alert-success py-2 small d-none text-center mb-3">
-                    <i class="bi bi-check-circle-fill me-1"></i> <strong>Registration Successful!</strong> Your donor account has been created. Please log in below.
+                <!-- Dynamic URL Alert Toast -->
+                <div id="urlAlertContainer"></div>
+
+                <div class="auth-header text-center">
+                    <h3>Welcome Back</h3>
+                    <p>Select your access role to continue</p>
                 </div>
 
-                <!-- Dynamic Alert: Password Reset Success -->
-                <div id="reset-alert" class="alert alert-success py-2 small d-none text-center mb-3">
-                    <i class="bi bi-check-circle-fill me-1"></i> Password updated successfully! Please log in.
+                <!-- Modern Role Switcher -->
+                <div class="role-switch-container">
+                    <button type="button" class="role-btn active" id="btnRoleDonor" onclick="selectRole('Donor')">
+                        <i class="bi bi-person me-1"></i>Donor
+                    </button>
+                    <button type="button" class="role-btn" id="btnRoleArea" onclick="selectRole('Area Admin')">
+                        <i class="bi bi-geo-alt me-1"></i>Area Admin
+                    </button>
+                    <button type="button" class="role-btn" id="btnRoleSys" onclick="selectRole('System Admin')">
+                        <i class="bi bi-shield-lock me-1"></i>System Admin
+                    </button>
                 </div>
 
-                <div class="text-center mb-4">
-                    <h2>Welcome Back</h2>
-                    <p class="text-muted small mb-0">Select your access role to continue</p>
-                </div>
+                <form method="POST" action="authentication.php" id="loginForm">
+                    <!-- Hidden Role Field to Pass Cleanly to PHP Backend -->
+                    <input type="hidden" name="role" id="roleInput" value="Donor">
 
-                <!-- Role Selection Tabs -->
-                <ul class="nav nav-tabs login-tabs" id="roleTab" role="tablist">
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link active" id="donor-tab" data-bs-toggle="tab" data-bs-target="#donor-pane" type="button" role="tab" aria-controls="donor-pane" aria-selected="true">Donor</button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="area-tab" data-bs-toggle="tab" data-bs-target="#area-pane" type="button" role="tab" aria-controls="area-pane" aria-selected="false">Area Admin</button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="system-tab" data-bs-toggle="tab" data-bs-target="#system-pane" type="button" role="tab" aria-controls="system-pane" aria-selected="false">System Admin</button>
-                    </li>
-                </ul>
-
-                <div class="tab-content" id="roleTabContent">
-                    
-                    <!-- 1. Donor Login Form -->
-                    <div class="tab-pane fade show active" id="donor-pane" role="tabpanel" aria-labelledby="donor-tab">
-                        <form method="POST" action="authentication.php">
-                            <div class="mb-3">
-                                <label for="donor-email" class="form-label">Email Address</label>
-                                <input type="email" class="form-control" id="donor-email" name="email" placeholder="name@example.com" required>
-                            </div>
-                            <div class="mb-3">
-                                <label for="donor-password" class="form-label">Password</label>
-                                <input type="password" class="form-control" id="donor-password" name="password" placeholder="Enter your password" required>
-                            </div>
-                            <div class="d-grid mt-4">
-                                <button class="btn login-btn" type="submit" name="ulogin">Login as Donor</button>
-                            </div>
-                            <div class="auth-footer-links">
-                                <a href="forgot_password.php">Forgot Password?</a>
-                                <span class="mx-2 text-muted">&bull;</span>
-                                <a href="reg_donor.php">Create Account</a>
-                            </div>
-                        </form>
+                    <div class="mb-2">
+                        <label class="form-label mb-1" for="loginEmail">Email Address</label>
+                        <input type="email" class="form-control" id="loginEmail" name="email" placeholder="name@example.com" required autofocus>
                     </div>
 
-                    <!-- 2. Area Admin Login Form -->
-                    <div class="tab-pane fade" id="area-pane" role="tabpanel" aria-labelledby="area-tab">
-                        <form method="POST" action="authentication.php">
-                            <div class="mb-3">
-                                <label for="area-email" class="form-label">Admin Email</label>
-                                <input type="email" class="form-control" id="area-email" name="email" placeholder="admin@county.gov" required>
-                            </div>
-                            <div class="mb-3">
-                                <label for="area-password" class="form-label">Password</label>
-                                <input type="password" class="form-control" id="area-password" name="password" placeholder="Enter your password" required>
-                            </div>
-                            <div class="d-grid mt-4">
-                                <button class="btn login-btn" type="submit" name="alogin">Login as Area Admin</button>
-                            </div>
-                            <div class="auth-footer-links">
-                                <a href="forgot_password.php">Forgot Password?</a>
-                                <span class="mx-2 text-muted">&bull;</span>
-                                <a href="mailto:tarirai.makoni@strathmore.edu">Request County Access</a>
-                            </div>
-                        </form>
+                    <div class="mb-2">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <label class="form-label" for="loginPassword">Password</label>
+                            <a href="forgot_password.php" class="forgot-link" id="forgotPasswordLink">Forgot password?</a>
+                        </div>
+                        <div class="input-group-password">
+                            <input type="password" class="form-control" id="loginPassword" name="password" placeholder="Enter your password" required>
+                            <button type="button" class="password-toggle-btn" id="btnTogglePassword" onclick="togglePasswordVisibility()" aria-label="Toggle password view">
+                                <i class="bi bi-eye" id="toggleIcon"></i>
+                            </button>
+                        </div>
                     </div>
 
-                    <!-- 3. System Admin Login Form -->
-                    <div class="tab-pane fade" id="system-pane" role="tabpanel" aria-labelledby="system-tab">
-                        <form method="POST" action="authentication.php">
-                            <div class="mb-3">
-                                <label for="system-email" class="form-label">System Admin Email</label>
-                                <input type="email" class="form-control" id="system-email" name="email" placeholder="sysadmin@traceability.org" required>
-                            </div>
-                            <div class="mb-3">
-                                <label for="system-password" class="form-label">Password</label>
-                                <input type="password" class="form-control" id="system-password" name="password" placeholder="Enter your password" required>
-                            </div>
-                            <div class="d-grid mt-4">
-                                <button class="btn login-btn" type="submit" name="slogin">Login as System Admin</button>
-                            </div>
-                            <div class="auth-footer-links">
-                                <a href="forgot_password.php">Forgot Password?</a>
-                            </div>
-                        </form>
-                    </div>
+                    <button type="submit" class="btn btn-auth-submit" id="btnSubmit">
+                        Sign In as Donor
+                    </button>
+                </form>
 
+                <div class="auth-footer" id="registrationFooter">
+                    <span>Don't have an account?</span> 
+                    <a href="reg_donor.php">Create Donor Account</a>
                 </div>
             </div>
-        </div>
+        </main>
     </div>
-
-    <!-- Footer -->
-    <footer class="site-footer">
-        <div class="container">
-            <div class="row g-4">
-                <div class="col-lg-4 col-md-6">
-                    <h5>Get In Touch</h5>
-                    <p class="mb-1"><i class="bi bi-geo-alt me-2 text-success"></i>Nairobi, KENYA</p>
-                    <p class="mb-1"><i class="bi bi-envelope me-2 text-success"></i>tarirai.makoni@strathmore.edu</p>
-                    <p class="mb-0"><i class="bi bi-telephone me-2 text-success"></i>0745603353</p>
-                </div>
-                <div class="col-lg-4 col-md-6">
-                    <h5>Quick Links</h5>
-                    <ul class="list-unstyled">
-                        <li class="mb-1"><a href="homepage.html"><i class="bi bi-chevron-right me-1 small"></i>Home</a></li>
-                        <li class="mb-1"><a href="login_page.html"><i class="bi bi-chevron-right me-1 small"></i>Login</a></li>
-                        <li class="mb-1"><a href="reg_donor.php"><i class="bi bi-chevron-right me-1 small"></i>Register as Donor</a></li>
-                    </ul>
-                </div>
-                <div class="col-lg-4 col-md-12">
-                    <h5>System Mission</h5>
-                    <p class="small">Enhancing last-mile accountability in food aid distribution through cryptographic QR code consignment verification and immutable audit telemetry.</p>
-                </div>
-            </div>
-            <div class="text-center pt-4 mt-4 border-top border-secondary">
-                <p class="mb-0 small text-muted">&copy; Food Aid Traceability System. All Rights Reserved.</p>
-            </div>
-        </div>
-    </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Check URL parameters for status alerts
-        const urlParams = new URLSearchParams(window.location.search);
-        
-        if (urlParams.get('signup') === 'success') {
-            const signupAlert = document.getElementById('signup-alert');
-            if (signupAlert) {
-                signupAlert.classList.remove('d-none');
+        // Role Switching Logic
+        function selectRole(roleName) {
+            document.getElementById('roleInput').value = roleName;
+
+            // Update segmented buttons
+            document.querySelectorAll('.role-btn').forEach(btn => btn.classList.remove('active'));
+            if (roleName === 'Donor') document.getElementById('btnRoleDonor').classList.add('active');
+            if (roleName === 'Area Admin') document.getElementById('btnRoleArea').classList.add('active');
+            if (roleName === 'System Admin') document.getElementById('btnRoleSys').classList.add('active');
+
+            // Update Submit Button Text
+            const submitBtn = document.getElementById('btnSubmit');
+            submitBtn.textContent = `Sign In as ${roleName}`;
+
+            // Adjust Footer Link Based on Role Architecture
+            const footer = document.getElementById('registrationFooter');
+            if (roleName === 'Donor') {
+                footer.innerHTML = `<span>Don't have an account?</span> <a href="reg_donor.php">Create Donor Account</a>`;
+            } else {
+                footer.innerHTML = `<span class="text-muted"><i class="bi bi-shield-check text-success me-1"></i>Staff accounts are provisioned via System Admin.</span>`;
             }
         }
 
-        if (urlParams.get('reset') === 'success') {
-            const resetAlert = document.getElementById('reset-alert');
-            if (resetAlert) {
-                resetAlert.classList.remove('d-none');
+        // Show/Hide Password Feature
+        function togglePasswordVisibility() {
+            const pwdInput = document.getElementById('loginPassword');
+            const icon = document.getElementById('toggleIcon');
+            if (pwdInput.type === 'password') {
+                pwdInput.type = 'text';
+                icon.className = 'bi bi-eye-slash';
+            } else {
+                pwdInput.type = 'password';
+                icon.className = 'bi bi-eye';
             }
         }
+
+        // Automated URL Query Banner Parser
+        document.addEventListener('DOMContentLoaded', function() {
+            const params = new URLSearchParams(window.location.search);
+            const alertBox = document.getElementById('urlAlertContainer');
+
+            if (params.get('logout') === 'success') {
+                alertBox.innerHTML = `
+                    <div class="alert alert-success compact-alert alert-dismissible fade show d-flex align-items-center" role="alert">
+                        <i class="bi bi-check-circle-fill me-2 fs-6"></i>
+                        <span>You have been safely logged out.</span>
+                        <button type="button" class="btn-close py-2" data-bs-dismiss="alert"></button>
+                    </div>`;
+            } else if (params.get('signup') === 'success') {
+                alertBox.innerHTML = `
+                    <div class="alert alert-success compact-alert alert-dismissible fade show d-flex align-items-center" role="alert">
+                        <i class="bi bi-check-circle-fill me-2 fs-6"></i>
+                        <span>Registration successful! Please log in.</span>
+                        <button type="button" class="btn-close py-2" data-bs-dismiss="alert"></button>
+                    </div>`;
+            } else if (params.get('error')) {
+                alertBox.innerHTML = `
+                    <div class="alert alert-danger compact-alert alert-dismissible fade show d-flex align-items-center" role="alert">
+                        <i class="bi bi-exclamation-triangle-fill me-2 fs-6"></i>
+                        <span>Invalid credentials. Please verify your details.</span>
+                        <button type="button" class="btn-close py-2" data-bs-dismiss="alert"></button>
+                    </div>`;
+            }
+        });
     </script>
 </body>
 
