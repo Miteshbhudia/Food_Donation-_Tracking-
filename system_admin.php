@@ -114,7 +114,7 @@ $total_commodities =$commodity_res->fetch_assoc()['total'] ?? 0;
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
-    <!-- Updated to latest Bootstrap Icons v1.11.3 for complete icon support -->
+    <!-- Bootstrap Icons v1.11.3 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 
@@ -284,7 +284,6 @@ $total_commodities =$commodity_res->fetch_assoc()['total'] ?? 0;
     <!-- Top Navigation -->
     <nav class="navbar navbar-expand-lg sticky-top">
         <div class="container">
-            <!-- Clear, high-contrast role badge -->
             <a href="system_admin.php" class="brand-title">Food<span>Trace</span> <span class="badge bg-success-subtle text-success border border-success-subtle fs-6 fw-semibold ms-2">System Admin</span></a>
             <div class="ms-auto d-flex align-items-center gap-3">
                 <span class="small text-muted d-none d-md-inline"><i class="bi bi-shield-lock-fill text-success me-1"></i><?php echo htmlspecialchars($fullname); ?></span>
@@ -309,6 +308,15 @@ $total_commodities =$commodity_res->fetch_assoc()['total'] ?? 0;
 
     <div class="container">
         
+        <!-- Account Provisioning Alert Banner (Displays when returning from reg_area.php) -->
+        <?php if (isset($_GET['user_added'])): ?>
+            <div class="alert alert-success alert-dismissible fade show mb-4" role="alert">
+                <i class="bi bi-check-circle-fill me-2 fs-5 align-middle"></i>
+                <strong>Account Created!</strong> A new <strong><?php echo htmlspecialchars($_GET['user_added']); ?></strong> account has been successfully provisioned.
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        <?php endif; ?>
+
         <?php if (!empty($message)) echo$message; ?>
 
         <!-- Key Metrics Cards -->

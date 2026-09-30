@@ -14,7 +14,7 @@ $fullname = $_SESSION['adminname'] ?? 'System Administrator';
 
 <head>
     <meta charset="utf-8">
-    <title>Register Area Administrator - Food Aid Traceability System</title>
+    <title>Provision Account - Food Aid Traceability System</title>
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
 
     <link href="img/favicon.ico" rel="icon">
@@ -84,14 +84,14 @@ $fullname = $_SESSION['adminname'] ?? 'System Administrator';
             margin-bottom: 0.4rem;
         }
 
-        .form-control {
+        .form-control, .form-select {
             border: 1px solid var(--card-border);
             border-radius: 8px;
             padding: 0.75rem 1rem;
             font-size: 0.925rem;
             transition: border-color 0.2s, box-shadow 0.2s;
         }
-        .form-control:focus {
+        .form-control:focus, .form-select:focus {
             border-color: var(--primary);
             box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.15);
         }
@@ -139,13 +139,25 @@ $fullname = $_SESSION['adminname'] ?? 'System Administrator';
         <div class="container">
             <div class="register-card">
                 <div class="text-center mb-4">
-                    <span class="badge bg-success mb-2 px-3 py-1 fw-semibold">Staff Governance</span>
-                    <h3 class="fw-bold mb-1">Add Area Administrator</h3>
-                    <p class="text-muted small mb-0">Authorize a regional field officer to manage aid intake, publish commodities, and verify QR drop-offs.</p>
+                    <span class="badge bg-success mb-2 px-3 py-1 fw-semibold">User Provisioning</span>
+                    <h3 class="fw-bold mb-1">Create System Account</h3>
+                    <p class="text-muted small mb-0">Provision an authorized role for Area Administrators, Donors, or System Administrators.</p>
                 </div>
 
                 <form method="POST" action="insertion.inc.php">
+                    <input type="hidden" name="admin_create_user" value="1">
+
                     <div class="row g-3">
+                        <!-- Role Selection -->
+                        <div class="col-12">
+                            <label class="form-label text-success">Select Account Role</label>
+                            <select class="form-select fw-semibold" name="role" id="roleSelect" onchange="toggleRoleFields()">
+                                <option value="Area Administrator" selected>Area Administrator (Field Officer)</option>
+                                <option value="Donor">Donor (Individual / Institutional)</option>
+                                <option value="System Administrator">System Administrator (Central Admin)</option>
+                            </select>
+                        </div>
+
                         <div class="col-md-6">
                             <label class="form-label">Full Name</label>
                             <input type="text" class="form-control" placeholder="e.g. John Kamau" required name="fname" autofocus>
@@ -154,17 +166,20 @@ $fullname = $_SESSION['adminname'] ?? 'System Administrator';
                             <label class="form-label">Phone Number</label>
                             <input type="text" class="form-control" placeholder="e.g. 0712345678" required name="phone">
                         </div>
-                        <div class="col-12">
-                            <label class="form-label">Assigned Hub / Sub-County Location</label>
-                            <input type="text" class="form-control" placeholder="e.g. Nairobi Central Hub, Kisumu West Depot" required name="location">
+
+                        <!-- Hub Location (Dynamic) -->
+                        <div class="col-12" id="locationGroup">
+                            <label class="form-label" id="locationLabel">Assigned Hub / Sub-County Location</label>
+                            <input type="text" class="form-control" id="locationInput" placeholder="e.g. Nairobi Central Hub" name="location" required>
                         </div>
+
                         <div class="col-12">
-                            <label class="form-label">Official Email Address</label>
-                            <input type="email" class="form-control" placeholder="areaadmin@fooddistribution.com" required name="email">
+                            <label class="form-label">Email Address</label>
+                            <input type="email" class="form-control" placeholder="user@fooddistribution.com" required name="email">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Password</label>
-                            <input type="password" class="form-control" placeholder="Create secure password" required name="password">
+                            <input type="password" class="form-control" placeholder="Create password" required name="password">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Confirm Password</label>
@@ -174,7 +189,7 @@ $fullname = $_SESSION['adminname'] ?? 'System Administrator';
 
                     <div class="d-grid mt-4">
                         <button class="btn btn-submit" type="submit" name="adda">
-                            <i class="bi bi-person-check-fill me-1"></i> Register Area Administrator
+                            <i class="bi bi-person-check-fill me-1"></i> Create Account
                         </button>
                     </div>
                 </form>
@@ -196,6 +211,31 @@ $fullname = $_SESSION['adminname'] ?? 'System Administrator';
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function toggleRoleFields() {
+            const role = document.getElementById('roleSelect').value;
+            const locGroup = document.getElementById('locationGroup');
+            const locInput = document.getElementById('locationInput');
+            const locLabel = document.getElementById('locationLabel');
+
+            if (role === 'Area Administrator') {
+                locGroup.style.display = 'block';
+                locLabel.textContent = 'Assigned Hub / Sub-County Location';
+                locInput.placeholder = 'e.g. Nairobi Central Hub, Kisumu West Depot';
+                locInput.required = true;
+            } else if (role === 'Donor') {
+                locGroup.style.display = 'none';
+                locInput.required = false;
+                locInput.value = '';
+            } else if (role === 'System Administrator') {
+                locGroup.style.display = 'block';
+                locLabel.textContent = 'Administrative Headquarters / Region';
+                locInput.placeholder = 'e.g. National Headquarters, Nairobi';
+                locInput.required = false;
+                locInput.value = 'National HQ';
+            }
+        }
+    </script>
 </body>
 
 </html>
