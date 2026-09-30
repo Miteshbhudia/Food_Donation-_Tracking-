@@ -1,118 +1,98 @@
 <?php
+session_start();
+require_once 'dbconnection.inc.php';
 
-if (isset($_POST['add'])) {
-  require 'dbconnection.inc.php';
-  session_start();
-  $id4 = $_POST['id4'];
-  $id5 = $_POST['id5'];
-  $quan = $_POST['quan'];
-    $date = $_POST['date'];
-
-  $sql = "SELECT * FROM `commodity` WHERE `Commodity_ID` = '$id4'";
-  $query = mysqli_query($conn,$sql);
-
-        if(mysqli_num_rows($query) > 0){
-            $row = mysqli_fetch_assoc($query);
-
-           $_SESSION['num'] = $row['Quantity'];
-$null = 0;
-$num = $_SESSION['num'];
-$res = $num - $quan;
-
-// echo $null;
-// echo $res;
-if ($res > $null) {
-  $sql = "INSERT INTO `goods_donated`(`Commodity_ID`, `Donor_ID`, `Quantity`, `Date_Donated`, `Location`) VALUES ('$id4','$id5','$quan','$date','N/A')";
-$sql1 = "UPDATE `commodity` SET `Quantity`='$res' WHERE `Commodity_ID` = '$id4'";
-  mysqli_query($conn, $sql);
-  mysqli_query($conn, $sql1);
-   // var_dump($sql);
-   // die();
-  header("Location: index2.php");
-
-}else
-  {
-  $sql = "INSERT INTO `goods_donated`(`Commodity_ID`, `Donor_ID`, `Quantity`, `Date_Donated`, `Location`) VALUES ('$id4','$id5','$quan','$date','N/A')";
-$sql1 = "DELETE FROM `commodity` WHERE `Commodity_ID` = '$id4'";
-  mysqli_query($conn, $sql);
-  mysqli_query($conn, $sql1);
-   // var_dump($sql);
-   // die();
-  header("Location: index2.php");
-
-}}else{
-                echo "An error occured.";
-            }
-
-}
-
+// ==========================================
+// 1. DELETE DONATION RECORD (goods_donated)
+// ==========================================
 if (isset($_POST['deld'])) {
-  require 'dbconnection.inc.php';
+    $id = intval($_POST['id2'] ?? 0);
 
-  $id2 = $_POST['id2'];
-
-  if (empty($id2)) {
-    echo "Please Input a Donation ID.";
-  }else{
-    $sql = "DELETE FROM `goods_donated` WHERE `goods_donated`.`Dontation_ID` = '$id2'";
-    mysqli_query($conn, $sql);
-    header("Location: index.php");
-  }
+    if ($id > 0) {
+        $stmt =$conn->prepare("DELETE FROM `goods_donated` WHERE `Dontation_ID` = ?");
+        $stmt->bind_param("i", $id);
+        $stmt->execute();$stmt->close();
+        header("Location: system_admin.php?deleted=donation");
+        exit();
+    } else {
+        header("Location: system_admin.php?error=invalid_id");
+        exit();
+    }
 }
 
+// ==========================================
+// 2. DELETE ADMINISTRATOR (admin)
+// ==========================================
 if (isset($_POST['dela'])) {
-  require 'dbconnection.inc.php';
+    $id = intval($_POST['id3'] ?? 0);
 
-  $id3 = $_POST['id3'];
-
-  if (empty($id3)) {
-    echo "Please Input a Administrator ID.";
-  }else{
-    $sql = "DELETE FROM `admin` WHERE `Administrator_ID` = '$id3'";
-    mysqli_query($conn, $sql);
-    header("Location: index.php");
-  }
+    if ($id > 0) {
+        $stmt =$conn->prepare("DELETE FROM `admin` WHERE `Administrator_ID` = ?");
+        $stmt->bind_param("i", $id);
+        $stmt->execute();$stmt->close();
+        header("Location: system_admin.php?deleted=admin");
+        exit();
+    } else {
+        header("Location: system_admin.php?error=invalid_id");
+        exit();
+    }
 }
 
+// ==========================================
+// 3. DELETE COMMODITY FROM SYSTEM ADMIN (commodity)
+// ==========================================
 if (isset($_POST['delc'])) {
-  require 'dbconnection.inc.php';
+    $id = intval($_POST['id1'] ?? 0);
 
-  $id1 = $_POST['id1'];
-
-  if (empty($id1)) {
-    echo "Please Input a Commodity ID.";
-  }else{
-    $sql = "DELETE FROM `commodity` WHERE `Commodity_ID` = '$id1'";
-    mysqli_query($conn, $sql);
-    header("Location: index.php");
-  }
+    if ($id > 0) {
+        $stmt =$conn->prepare("DELETE FROM `commodity` WHERE `Commodity_ID` = ?");
+        $stmt->bind_param("i", $id);
+        $stmt->execute();$stmt->close();
+        header("Location: system_admin.php?deleted=commodity");
+        exit();
+    } else {
+        header("Location: system_admin.php?error=invalid_id");
+        exit();
+    }
 }
 
+// ==========================================
+// 4. DELETE COMMODITY FROM AREA ADMIN (index1.php)
+// ==========================================
 if (isset($_POST['delc1'])) {
-  require 'dbconnection.inc.php';
+    $id = intval($_POST['id1'] ?? 0);
 
-  $id1 = $_POST['id1'];
-
-  if (empty($id1)) {
-    echo "Please Input a Commodity ID.";
-  }else{
-    $sql = "DELETE FROM `commodity` WHERE `Commodity_ID` = '$id1'";
-    mysqli_query($conn, $sql);
-    header("Location: index1.php");
-  }
+    if ($id > 0) {
+        $stmt =$conn->prepare("DELETE FROM `commodity` WHERE `Commodity_ID` = ?");
+        $stmt->bind_param("i", $id);
+        $stmt->execute();$stmt->close();
+        header("Location: index1.php?commodity_deleted=success");
+        exit();
+    } else {
+        header("Location: index1.php?error=invalid_id");
+        exit();
+    }
 }
 
+// ==========================================
+// 5. DELETE DONOR (FIXED: points to `donors`, not `users`)
+// ==========================================
 if (isset($_POST['delu'])) {
-  require 'dbconnection.inc.php';
+    $id = intval($_POST['id'] ?? 0);
 
-  $id = $_POST['id'];
-
-  if (empty($id)) {
-    echo "Please Input a Donor ID.";
-  }else{
-    $sql = "DELETE FROM `users` WHERE `Donor_ID` = '$id'";
-    mysqli_query($conn, $sql);
-    header("Location: index.php");
-  }
+    if ($id > 0) {
+        $stmt =$conn->prepare("DELETE FROM `donors` WHERE `Donor_ID` = ?");
+        $stmt->bind_param("i", $id);
+        $stmt->execute();$stmt->close();
+        header("Location: system_admin.php?deleted=donor");
+        exit();
+    } else {
+        header("Location: system_admin.php?error=invalid_id");
+        exit();
+    }
 }
+
+// Fallback redirect
+header("Location: system_admin.php");
+exit();
 ?>

@@ -1,520 +1,545 @@
 <?php
-require_once 'dbconnection.inc.php'; // Ensure this file provides a $conn variable for the database connection
+require_once 'dbconnection.inc.php';
 session_start();
 
-// Check if System Admin is logged in
-if (!isset($_SESSION['adminname'])) { 
-    header("Location: login.html");
+// Verify System Admin authentication
+if (!isset($_SESSION['adminname']) and !isset($_SESSION['Email'])) { 
+    header("Location: login_page.html");
     exit();
 }
 
-$fullname = $_SESSION['adminname'];
-$message = ''; // Initialize message variable for user feedback
+$fullname = $_SESSION['adminname'] ?? 'System Administrator';
+$message  = '';
 
-$edit_mode = false;
+$edit_mode     = false;
 $admin_to_edit = null;
 
-// --- Handle Form Submissions (Update and Delete) ---
+// ==========================================
+// 1. HANDLE FORM SUBMISSIONS
+// ==========================================
 
 // Handle Update action
 if (isset($_POST['update_admin'])) {
-    $admin_id = $_POST['admin_id'];
-    $fullname_edit = $_POST['fullname'];
-    $email_address_edit = $_POST['email_address'];
-    $location_edit = $_POST['location']; // Location can be empty, but other fields are required.
+    $admin_id           = intval($_POST['admin_id'] ?? 0);
+    $fullname_edit      = trim($_POST['fullname'] ?? '');
+    $email_address_edit = trim($_POST['email_address'] ?? '');
+    $location_edit      = trim($_POST['location'] ?? '');
 
-    // Basic validation
-    if (!empty($admin_id) && !empty($fullname_edit) && !empty($email_address_edit)) {
-        // Use the $conn from dbconnection.inc.php
-        $stmt = $conn->prepare("UPDATE `admin` SET `Fullname`=?, `Email_Address`=?, `Location`=? WHERE `Administrator_ID`=?");
-        // Assuming Position is not directly editable by admin, or it's fixed as 'Area Administrator'
+    if (!empty($admin_id) and !empty($fullname_edit) and !empty($email_address_edit)) {
+        $stmt = $conn->prepare("UPDATE `admin` SET `Fullname` = ?, `Email_Address` = ?, `Location` = ? WHERE `Administrator_ID` = ?");
         $stmt->bind_param("sssi", $fullname_edit, $email_address_edit, $location_edit, $admin_id);
 
         if ($stmt->execute()) {
-            $message = "<div class='alert alert-success'>Administrator updated successfully!</div>";
+            $message = "<div class='alert alert-success alert-dismissible fade show' role='alert'>
+                            <i class='bi bi-check-circle-fill me-2'></i>Administrator <strong>" . htmlspecialchars($fullname_edit) . "</strong> updated successfully!
+                            <button type='button' class='btn-close' data-bs-dismiss='alert'></button>
+                        </div>";
         } else {
-            $message = "<div class='alert alert-danger'>Error updating administrator: " . $stmt->error . "</div>";
+            $message = "<div class='alert alert-danger alert-dismissible fade show' role='alert'>
+                            <i class='bi bi-exclamation-triangle-fill me-2'></i>Error updating administrator: " . htmlspecialchars($stmt->error) . "
+                            <button type='button' class='btn-close' data-bs-dismiss='alert'></button>
+                        </div>";
         }
         $stmt->close();
     } else {
-        $message = "<div class='alert alert-warning'>Please fill all required fields for update.</div>";
+        $message = "<div class='alert alert-warning alert-dismissible fade show' role='alert'>
+                        <i class='bi bi-exclamation-circle-fill me-2'></i>Please complete all required fields.
+                        <button type='button' class='btn-close' data-bs-dismiss='alert'></button>
+                    </div>";
     }
 }
 
 // Handle Delete action
 if (isset($_POST['dela'])) {
-    $id_to_delete = $_POST['id3'];
-    // Use the $conn from dbconnection.inc.php
+    $id_to_delete = intval($_POST['id3'] ?? 0);
+
     $stmt = $conn->prepare("DELETE FROM `admin` WHERE `Administrator_ID` = ?");
     $stmt->bind_param("i", $id_to_delete);
 
-    if ($stmt->execute()) {
-        $message = "<div class='alert alert-success'>Administrator deleted successfully!</div>";
+    if ($stmt->execute()) {$message = "<div class='alert alert-success alert-dismissible fade show' role='alert'>
+                        <i class='bi bi-check-circle-fill me-2'></i>Area Administrator successfully removed from system.
+                        <button type='button' class='btn-close' data-bs-dismiss='alert'></button>
+                    </div>";
     } else {
-        $message = "<div class='alert alert-danger'>Error deleting administrator: " . $stmt->error . "</div>";
+        $message = "<div class='alert alert-danger alert-dismissible fade show' role='alert'>
+                        <i class='bi bi-exclamation-triangle-fill me-2'></i>Error deleting administrator: " . htmlspecialchars($stmt->error) . "
+                        <button type='button' class='btn-close' data-bs-dismiss='alert'></button>
+                    </div>";
     }
     $stmt->close();
 }
 
-// --- Check for Edit Request ---
-// This part must come AFTER processing POST data, so an update can happen before re-displaying the list.
-if (isset($_GET['action']) && $_GET['action'] == 'edit' && isset($_GET['id'])) {
-    $edit_mode = true;
-    $admin_id_to_fetch = $_GET['id'];
+// Check for Edit Request
+if (isset($_GET['action']) and $_GET['action'] === 'edit' and isset($_GET['id'])) {
+    $admin_id_to_fetch = intval($_GET['id']);
 
-    // Use the $conn from dbconnection.inc.php
-    $stmt = $conn->prepare("SELECT `Administrator_ID`, `Fullname`, `Email_Address`, `Position`, `Location` FROM `admin`
-     WHERE `Administrator_ID` = ? AND `Position` = 'Area Administrator'");
-    $stmt->bind_param("i", $admin_id_to_fetch);
-    $stmt->execute();
-    $result = $stmt->get_result();
+    $stmt =$conn->prepare("SELECT `Administrator_ID`, `Fullname`, `Email_Address`, `Position`, `Location` FROM `admin` WHERE `Administrator_ID` = ? AND `Position` = 'Area Administrator'");
+    $stmt->bind_param("i", $admin_id_to_fetch);$stmt->execute();
+    $result =$stmt->get_result();
 
-    if ($result->num_rows > 0) {
-        $admin_to_edit = $result->fetch_assoc();
+    if ($result->num_rows > 0) {$admin_to_edit = $result->fetch_assoc();$edit_mode = true;
     } else {
-        $message = "<div class='alert alert-danger'>Area Administrator not found or not an Area Administrator.</div>";
-        $edit_mode = false; // Revert to list view if not found
+        $message = "<div class='alert alert-danger'>Area Administrator not found or unauthorized position.</div>";
+        $edit_mode = false;
     }
     $stmt->close();
 }
 
+// ==========================================
+// 2. FETCH DASHBOARD STATISTICS
+// ==========================================
+$donor_res =$conn->query("SELECT COUNT(*) as total FROM `donors`");
+$total_donors =$donor_res->fetch_assoc()['total'] ?? 0;
 
-// --- Fetch Dashboard Statistics ---
-// Total Donors
-$donor_sql = "SELECT COUNT(*) as total_donors FROM `donors`";
-$donor_result = $conn->query($donor_sql);
-$total_donors = $donor_result->fetch_assoc()['total_donors'];
+$admin_res =$conn->query("SELECT COUNT(*) as total FROM `admin` WHERE `Position` = 'Area Administrator'");
+$total_admins =$admin_res->fetch_assoc()['total'] ?? 0;
 
-// Total Area Admins
-$admin_sql = "SELECT COUNT(*) as total_admins FROM `admin` WHERE `Position` = 'Area Administrator'";
-$admin_result = $conn->query($admin_sql);
-$total_admins = $admin_result->fetch_assoc()['total_admins'];
+$donation_res =$conn->query("SELECT COUNT(*) as total FROM `goods_donated`");
+$total_donations =$donation_res->fetch_assoc()['total'] ?? 0;
 
-// Total Donations
-$donation_sql = "SELECT COUNT(*) as total_donations FROM `goods_donated`";
-$donation_result = $conn->query($donation_sql);
-$total_donations = $donation_result->fetch_assoc()['total_donations'];
-
-// Total Commodities (assuming this refers to total needs or types of goods)
-$commodity_sql = "SELECT COUNT(*) as total_commodities FROM `commodity`";
-$commodity_result = $conn->query($commodity_sql);
-$total_commodities = $commodity_result->fetch_assoc()['total_commodities'];
-
+$commodity_res =$conn->query("SELECT COUNT(*) as total FROM `commodity`");
+$total_commodities =$commodity_res->fetch_assoc()['total'] ?? 0;
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="utf-8">
-    <title>Food Donation - System Administrator</title>
+    <title>System Administration - Food Aid Traceability System</title>
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
+
     <link href="img/favicon.ico" rel="icon">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
-    <link href="css/bootstrap.min.css" rel="stylesheet">
-    <link href="css/style.css" rel="stylesheet">
+    <!-- Updated to latest Bootstrap Icons v1.11.3 for complete icon support -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
     <style>
         :root {
-            --primary: #5cb85c; /* A nice green for primary actions, you can change this */
-            --secondary: #f0ad4e; /* A complementary color */
-            --dark: #343a40;
-            --light: #f8f9fa;
+            --primary: #16a34a;
+            --primary-hover: #15803d;
+            --primary-subtle: #dcfce7;
+            --dark: #0f172a;
+            --gray-body: #64748b;
+            --bg-light: #f8fafc;
+            --card-border: #e2e8f0;
         }
 
-        /* General Body Styling */
         body {
             font-family: 'Poppins', sans-serif;
-            background-color: var(--light);
+            background-color: var(--bg-light);
             color: var(--dark);
+            min-height: 100vh;
         }
 
-        /* Navbar Enhancements */
         .navbar {
-            background-color: var(--dark) !important; /* Darker nav for contrast */
-            padding-top: 1rem;
-            padding-bottom: 1rem;
+            background-color: #ffffff;
+            border-bottom: 1px solid var(--card-border);
         }
-        .navbar .nav-link {
-            font-weight: 500;
-            padding: 0.75rem 1.25rem;
-            color: rgba(255, 255, 255, 0.7); /* Lighter text for dark background */
-            transition: 0.3s;
-        }
-        .navbar .nav-link:hover,
-        .navbar .nav-link.active {
-            color: var(--primary) !important;
-        }
-        /* SPECIFIC CHANGE: Smaller font for the nav brand text on smaller screens */
-        .navbar-brand h1 {
-            font-size: 1.75rem; /* Adjust this value as needed, e.g., 2rem, 1.5rem */
-            color: var(--primary) !important;
-        }
-        .navbar-brand h1 span {
-             color: var(--light) !important;
-        }
-
-
-        /* Hero Section Styling */
-        .bg-hero {
-            background: linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), url('https://via.placeholder.com/1920x600.png?text=Food+Donation+Banner') no-repeat center center; /* Placeholder image */
-            background-size: cover;
-            position: relative;
-            z-index: 1;
-            padding-top: 8rem; /* More vertical padding */
-            padding-bottom: 8rem;
-        }
-        .bg-hero::before {
-            content: "";
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5); /* Dark overlay */
-            z-index: -1;
-        }
-        .bg-hero h1.display-3 { /* Changed from display-1 */
-            font-size: 3.5rem; /* Smaller display-1 for better aesthetics */
+        .brand-title {
+            font-size: 1.5rem;
             font-weight: 700;
-            color: #fff;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
-            margin-bottom: 1.5rem !important; /* Adjust margin */
-        }
-        .bg-hero p.fs-5 { /* Changed from fs-4 */
-            font-size: 1.5rem !important;
-            color: rgba(255, 255, 255, 0.8);
-        }
-
-        /* Section Headings */
-        .mx-auto.text-center.mb-5 h6 {
-            color: var(--primary) !important;
-            font-weight: 600;
-            letter-spacing: 2px;
-            text-transform: uppercase;
-        }
-        .mx-auto.text-center.mb-5 h1.display-5 {
-            color: var(--dark);
-            font-weight: 700;
-            margin-top: 0.5rem;
-            margin-bottom: 2rem;
-        }
-
-        /* Stats Card Styling */
-        .stats-card {
-            background-color: #ffffff; /* White background for cards */
-            border: none; /* Remove default border */
-            border-radius: .75rem; /* More rounded corners */
-            padding: 2rem; /* Increased padding */
-            text-align: center;
-            box-shadow: 0 0.5rem 1.5rem rgba(0,0,0,.08); /* Softer shadow */
-            transition: all 0.4s ease-in-out;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            height: 100%; /* Ensure cards have equal height in a row */
-        }
-        .stats-card:hover {
-            transform: translateY(-8px); /* More pronounced lift */
-            box-shadow: 0 0.8rem 2rem rgba(0,0,0,.15); /* Stronger shadow on hover */
-        }
-        .stats-icon {
-            font-size: 4rem; /* Larger icons */
             color: var(--primary);
+            text-decoration: none;
+            letter-spacing: -0.5px;
+        }
+        .brand-title span { color: var(--dark); }
+
+        .hero-banner {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #064e3b 100%);
+            color: #ffffff;
+            padding: 3.5rem 0;
+            margin-bottom: 2.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .section-card {
+            background: #ffffff;
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            box-shadow: 0 8px 25px rgba(15, 23, 42, 0.04);
+            padding: 2.25rem;
+            margin-bottom: 2.5rem;
+        }
+
+        /* Stat Cards */
+        .stat-widget {
+            background: #ffffff;
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
+            padding: 1.75rem 1.5rem;
+            box-shadow: 0 4px 15px rgba(15, 23, 42, 0.03);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            height: 100%;
+        }
+        .stat-widget:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08);
+            border-color: #cbd5e1;
+        }
+        .stat-icon-wrap {
+            width: 52px;
+            height: 52px;
+            border-radius: 12px;
+            background-color: var(--primary-subtle);
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.6rem;
             margin-bottom: 1rem;
         }
-        .stats-title {
-            font-size: 1.35rem; /* Slightly larger title */
+        .stat-widget h6 {
+            font-size: 0.85rem;
+            color: var(--gray-body);
+            text-transform: uppercase;
             font-weight: 600;
-            color: var(--dark);
-            margin-top: 0; /* Remove default margin */
-            margin-bottom: 0.5rem;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.35rem;
         }
-        .stats-number {
-            font-size: 3rem; /* Larger number */
-            font-weight: 700;
-            color: var(--primary);
-            margin-bottom: 0; /* Remove default margin */
+        .stat-widget .stat-number {
+            font-size: 2.4rem;
+            font-weight: 800;
+            color: var(--dark);
+            line-height: 1;
+            margin-bottom: 0;
         }
 
-        /* Table Styling */
-        .table {
-            border-collapse: separate;
-            border-spacing: 0;
-            border-radius: .5rem;
-            overflow: hidden; /* Ensures rounded corners apply */
-        }
-        .table thead.table-primary th {
-            background-color: var(--primary);
-            color: #fff;
-            border-color: var(--primary);
+        /* Tables */
+        .table thead th {
+            background-color: #f1f5f9;
+            color: #334155;
             font-weight: 600;
-            padding: 1rem;
-        }
-        .table tbody tr {
-            background-color: #fff;
-            transition: all 0.2s ease-in-out;
-        }
-        .table tbody tr:hover {
-            background-color: #f0f0f0; /* Light hover effect */
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid var(--card-border);
+            padding: 0.9rem 1rem;
         }
         .table tbody td {
             vertical-align: middle;
-            padding: 1rem;
-        }
-        .table-responsive {
-            border-radius: .5rem; /* Match table rounded corners */
-            box-shadow: 0 0.25rem 0.75rem rgba(0,0,0,.05); /* Subtle shadow for the table container */
+            font-size: 0.92rem;
+            padding: 0.9rem 1rem;
+            color: #1e293b;
         }
 
-        /* Action Buttons */
-        .action-buttons {
-            display: flex;
-            gap: 5px; /* Spacing between buttons */
-            flex-wrap: wrap; /* Allow buttons to wrap if space is limited */
-            justify-content: center; /* Center the buttons if desired */
-            align-items: center;
-        }
-        .action-buttons .btn {
-            font-size: 0.85rem;
-            padding: 0.375rem 0.75rem;
-            border-radius: .25rem;
-        }
-        .btn-info {
-            background-color: #17a2b8; /* Bootstrap default info */
-            border-color: #17a2b8;
-            color: white;
-        }
-        .btn-danger {
-            background-color: #dc3545; /* Bootstrap default danger */
-            border-color: #dc3545;
-            color: white;
-        }
-
-        /* Form Styling (Edit Administrator) */
-        .card.p-4.shadow-sm {
-            border-radius: .75rem;
-            box-shadow: 0 0.5rem 1.5rem rgba(0,0,0,.08) !important;
-            background-color: #ffffff;
-        }
-        .card h3 {
-            color: var(--dark);
-            font-weight: 600;
-        }
-        .form-label {
-            font-weight: 500;
-            color: var(--dark);
-        }
-        .form-control:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 0.25rem rgba(var(--primary-rgb), .25); /* Assuming --primary-rgb is available from bootstrap */
-        }
-        .btn-primary {
+        .btn-primary-custom {
             background-color: var(--primary);
-            border-color: var(--primary);
-            transition: all 0.3s ease;
+            color: #ffffff;
+            border: none;
+            font-weight: 600;
+            border-radius: 8px;
+            padding: 0.55rem 1.25rem;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-block;
         }
-        .btn-primary:hover {
-            filter: brightness(90%); /* Simpler way to darken in CSS */
-        }
-        .btn-secondary {
-            background-color: #6c757d;
-            border-color: #6c757d;
-            transition: all 0.3s ease;
-        }
-        .btn-secondary:hover {
-            filter: brightness(90%);
+        .btn-primary-custom:hover {
+            background-color: var(--primary-hover);
+            color: #ffffff;
+            transform: translateY(-1px);
         }
 
-        /* Footer Styling */
-        .bg-footer {
-            background-color: var(--dark) !important; /* Match navbar */
-            padding-top: 1.5rem;
-            padding-bottom: 1.5rem;
-            color: rgba(255, 255, 255, 0.7);
+        .btn-print {
+            background-color: #ffffff;
+            border: 1px solid var(--card-border);
+            color: var(--gray-body);
+            font-weight: 600;
+            font-size: 0.875rem;
+            padding: 0.55rem 1.25rem;
+            border-radius: 8px;
+            transition: all 0.2s;
         }
-        .bg-footer a {
-            color: var(--primary) !important;
-            font-weight: 700;
-            text-decoration: none;
+        .btn-print:hover {
+            background-color: #f1f5f9;
+            color: var(--dark);
         }
-        .bg-footer a:hover {
-            text-decoration: underline;
+
+        /* Status Badges */
+        .status-badge {
+            font-size: 0.775rem;
+            font-weight: 600;
+            padding: 0.35rem 0.75rem;
+            border-radius: 50px;
+        }
+        .status-pending { background-color: #fef3c7; color: #92400e; }
+        .status-collected { background-color: #e0f2fe; color: #0369a1; }
+        .status-delivered { background-color: #dcfce7; color: #166534; }
+
+        .site-footer {
+            background-color: #0b1120;
+            color: #94a3b8;
+            font-size: 0.9rem;
+            padding: 3.5rem 0 1.5rem 0;
+            margin-top: 5rem;
         }
     </style>
 </head>
+
 <body>
-    <nav class="navbar navbar-expand-lg bg-primary navbar-dark shadow-sm py-3 py-lg-0 px-3 px-lg-5">
-        <a href="system_admin.php" class="navbar-brand d-flex d-lg-none">
-            <h1 class="m-0 fs-3 text-secondary"><span class="text-white">System</span> Admin</h1>
-        </a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="navbarCollapse">
-            <div class="navbar-nav mx-auto py-0">
-                <a href="system_admin.php" class="nav-item nav-link active">Dashboard</a>
-                <a href="logout.php" class="nav-item nav-link">Logout</a>
+    <!-- Top Navigation -->
+    <nav class="navbar navbar-expand-lg sticky-top">
+        <div class="container">
+            <!-- Clear, high-contrast role badge -->
+            <a href="system_admin.php" class="brand-title">Food<span>Trace</span> <span class="badge bg-success-subtle text-success border border-success-subtle fs-6 fw-semibold ms-2">System Admin</span></a>
+            <div class="ms-auto d-flex align-items-center gap-3">
+                <span class="small text-muted d-none d-md-inline"><i class="bi bi-shield-lock-fill text-success me-1"></i><?php echo htmlspecialchars($fullname); ?></span>
+                <a href="homepage.html" class="btn btn-outline-secondary btn-sm">Home</a>
+                <a href="logout.php" class="btn btn-outline-danger btn-sm"><i class="bi bi-box-arrow-right me-1"></i>Logout</a>
             </div>
         </div>
     </nav>
 
-    <div class="container-fluid bg-primary py-5 bg-hero mb-5">
-        <div class="container py-5">
-            <div class="row justify-content-start">
-                <div class="col-lg-10 text-center text-lg-start">
-                    <h1 class="display-3 text-white mb-md-4">Welcome, <?php echo htmlspecialchars($fullname); ?>!</h1>
-                    <p class="fs-5 text-white mb-4 pb-2">Your central hub for managing the Food Donation System.</p>
+    <!-- Hero Banner -->
+    <header class="hero-banner">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-lg-8">
+                    <span class="badge bg-success mb-2 px-3 py-2 fw-semibold">Central Administrative Console</span>
+                    <h2 class="fw-bold mb-2">Welcome, <?php echo htmlspecialchars($fullname); ?></h2>
+                    <p class="text-white-50 mb-0">High-level telemetry, regional administrator governance, and inventory auditing across all distribution zones.</p>
                 </div>
             </div>
         </div>
-    </div>
+    </header>
 
-    <main>
-        <div class="container-fluid py-5">
-            <div class="container">
-                <div class="mx-auto text-center mb-5" style="max-width: 700px;">
-                    <h6 class="text-primary text-uppercase">Platform Overview</h6>
-                    <h1 class="display-5">Key System Statistics</h1>
-                    <p class="lead text-muted">Get a quick glance at the current status of donors, administrators, 
-                        donations, and required commodities.</p>
+    <div class="container">
+        
+        <?php if (!empty($message)) echo$message; ?>
+
+        <!-- Key Metrics Cards -->
+        <div class="row g-4 mb-4">
+            <div class="col-lg-3 col-md-6">
+                <div class="stat-widget">
+                    <div class="stat-icon-wrap"><i class="bi bi-people-fill"></i></div>
+                    <h6>Total Donors</h6>
+                    <p class="stat-number"><?php echo htmlspecialchars($total_donors); ?></p>
                 </div>
-                <div class="row g-4">
-                    <div class="col-lg-3 col-md-6">
-                        <div class="stats-card">
-                            <i class="fas fa-users stats-icon"></i>
-                            <h3 class="stats-title">Total Donors</h3>
-                            <p class="stats-number"><?php echo htmlspecialchars($total_donors); ?></p>
-                        </div>
-                    </div>
-                    <div class="col-lg-3 col-md-6">
-                        <div class="stats-card">
-                            <i class="fas fa-user-shield stats-icon"></i>
-                            <h3 class="stats-title">Area Administrators</h3>
-                            <p class="stats-number"><?php echo htmlspecialchars($total_admins); ?></p>
-                        </div>
-                    </div>
-                    <div class="col-lg-3 col-md-6">
-                        <div class="stats-card">
-                            <i class="fas fa-hands-helping stats-icon"></i>
-                            <h3 class="stats-title">Total Donations</h3>
-                            <p class="stats-number"><?php echo htmlspecialchars($total_donations); ?></p>
-                        </div>
-                    </div>
-                    <div class="col-lg-3 col-md-6">
-                        <div class="stats-card">
-                            <i class="fas fa-box-open stats-icon"></i>
-                            <h3 class="stats-title">Total Needs</h3>
-                            <p class="stats-number"><?php echo htmlspecialchars($total_commodities); ?></p>
-                        </div>
-                    </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <div class="stat-widget">
+                    <div class="stat-icon-wrap"><i class="bi bi-shield-check"></i></div>
+                    <h6>Area Administrators</h6>
+                    <p class="stat-number"><?php echo htmlspecialchars($total_admins); ?></p>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <div class="stat-widget">
+                    <div class="stat-icon-wrap"><i class="bi bi-box-seam-fill"></i></div>
+                    <h6>Total Donations</h6>
+                    <p class="stat-number"><?php echo htmlspecialchars($total_donations); ?></p>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <div class="stat-widget">
+                    <div class="stat-icon-wrap"><i class="bi bi-card-checklist"></i></div>
+                    <h6>Total Needs Listed</h6>
+                    <p class="stat-number"><?php echo htmlspecialchars($total_commodities); ?></p>
                 </div>
             </div>
         </div>
 
-        <div class="container-fluid py-5">
-            <div class="container">
-                <div class="mx-auto text-center mb-5" style="max-width: 700px;">
-                    <h6 class="text-primary text-uppercase">Administrator Management</h6>
-                    <h1 class="display-5">Manage Area Administrators</h1>
-                    <p class="lead text-muted">View, edit, or delete existing Area Administrators, or add new ones to the system.</p>
+        <!-- Edit Form Card (Conditional) -->
+        <?php if ($edit_mode &&$admin_to_edit): ?>
+            <div class="section-card border-success">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4 class="fw-bold mb-0"><i class="bi bi-pencil-square text-success me-2"></i>Edit Area Administrator</h4>
+                    <a href="system_admin.php" class="btn btn-outline-secondary btn-sm">Cancel</a>
                 </div>
+                <form method="POST" action="system_admin.php">
+                    <input type="hidden" name="admin_id" value="<?php echo htmlspecialchars($admin_to_edit['Administrator_ID']); ?>">
 
-                <?php echo $message; // Display messages here ?>
-
-                <?php if ($edit_mode && $admin_to_edit): ?>
-                    <div class="card p-4 shadow-sm mb-5">
-                        <h3 class="mb-4">Edit Area Administrator: <?php echo htmlspecialchars($admin_to_edit['Fullname']); ?></h3>
-                        <form method="POST" action="system_admin.php">
-                            <input type="hidden" name="admin_id" value="<?php echo htmlspecialchars($admin_to_edit['Administrator_ID']); ?>">
-
-                            <div class="mb-3">
-                                <label for="fullname_edit" class="form-label">Fullname</label>
-                                <input type="text" class="form-control" id="fullname_edit" name="fullname" value="<?php echo htmlspecialchars
-                                ($admin_to_edit['Fullname']); ?>" required>
-                            </div>
-                            <div class="mb-3">
-                                <label for="email_address_edit" class="form-label">Email Address</label>
-                                <input type="email" class="form-control" id="email_address_edit" name="email_address" value="<?php echo htmlspecialchars
-                                ($admin_to_edit['Email_Address']); ?>" required>
-                            </div>
-                            <div class="mb-3">
-                                <label for="position_edit" class="form-label">Position</label>
-                                <input type="text" class="form-control" id="position_edit" name="position" value="<?php echo htmlspecialchars
-                                ($admin_to_edit['Position']); ?>" readonly>
-                            </div>
-                            <div class="mb-3">
-                                <label for="location_edit" class="form-label">Location</label>
-                                <input type="text" class="form-control" id="location_edit" name="location" value="<?php echo htmlspecialchars
-                                ($admin_to_edit['Location']); ?>">
-                            </div>
-                            <button type="submit" name="update_admin" class="btn btn-primary">Update Administrator</button>
-                            <a href="system_admin.php" class="btn btn-secondary">Cancel</a>
-                        </form>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Full Name</label>
+                            <input type="text" class="form-control" name="fullname" value="<?php echo htmlspecialchars($admin_to_edit['Fullname']); ?>" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Email Address</label>
+                            <input type="email" class="form-control" name="email_address" value="<?php echo htmlspecialchars($admin_to_edit['Email_Address']); ?>" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Position</label>
+                            <input type="text" class="form-control bg-light" name="position" value="<?php echo htmlspecialchars($admin_to_edit['Position']); ?>" readonly>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Assigned Sub-County / Hub Location</label>
+                            <input type="text" class="form-control" name="location" value="<?php echo htmlspecialchars($admin_to_edit['Location']); ?>">
+                        </div>
                     </div>
-                <?php else: ?>
-                    <div class="table-responsive">
-                        <table class="table table-striped table-hover">
-                            <thead class="table-primary">
-                                <tr>
-                                    <th scope="col">Admin ID</th>
-                                    <th scope="col">Fullname</th>
-                                    <th scope="col">Email Address</th>
-                                    <th scope="col">Position</th>
-                                    <th scope="col">Location</th>
-                                    <th scope="col">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php
-                                // The database connection $conn from dbconnection.inc.php is used here.
-                                $user_sql = "SELECT `Administrator_ID`, `Fullname`, `Email_Address`, `Position`, `Location` FROM `admin` 
-                                WHERE `Position` = 'Area Administrator'";
-                                $user_result = $conn->query($user_sql);
+                    <div class="mt-4 d-flex gap-2">
+                        <button type="submit" name="update_admin" class="btn btn-primary-custom">Save Changes</button>
+                        <a href="system_admin.php" class="btn btn-outline-secondary">Discard</a>
+                    </div>
+                </form>
+            </div>
+        <?php endif; ?>
 
-                                if ($user_result->num_rows > 0) {
-                                    while($user_row = $user_result->fetch_assoc()) {
-                                        echo "<tr>";
-                                        echo "<td>" . htmlspecialchars($user_row["Administrator_ID"]) . "</td>";
-                                        echo "<td>" . htmlspecialchars($user_row["Fullname"]) . "</td>";
-                                        echo "<td>" . htmlspecialchars($user_row["Email_Address"]) . "</td>";
-                                        echo "<td>" . htmlspecialchars($user_row["Position"]) . "</td>";
-                                        echo "<td>" . (!empty($user_row["Location"]) ? htmlspecialchars($user_row["Location"]) : "Not specified") . "</td>";
-                                        echo "<td class='action-buttons'>
-                                                    <a href='?action=edit&id=" . htmlspecialchars($user_row["Administrator_ID"]) . "' class='btn btn-info btn-sm'>Edit</a>
-                                                    <form method='POST' action='system_admin.php' onsubmit='return confirm
-                                                    (\"Are you sure you want to delete this administrator?\");' style='display:inline-block; margin-left: 5px;'>
-                                                        <input type='hidden' name='id3' value='" . htmlspecialchars($user_row["Administrator_ID"]) . "'>
-                                                        <button type='submit' name='dela' class='btn btn-danger btn-sm'>Delete</button>
-                                                    </form>
-                                                </td>";
-                                        echo "</tr>";
-                                    }
-                                } else {
-                                    echo "<tr><td colspan='6' class='text-center'>No Area Administrators found.</td></tr>";
+        <!-- Section 1: Area Administrator Management Table -->
+        <div class="section-card">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-2">
+                <div>
+                    <h4 class="fw-bold mb-1">Manage Area Administrators</h4>
+                    <p class="text-muted small mb-0">Authorized field officers tasked with consignment intake and delivery verification</p>
+                </div>
+                <a href="reg_area.php" class="btn btn-primary-custom btn-sm"><i class="bi bi-person-plus-fill me-1"></i> Add Area Administrator</a>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Admin ID</th>
+                            <th>Full Name</th>
+                            <th>Email Address</th>
+                            <th>Position</th>
+                            <th>Assigned Hub</th>
+                            <th class="text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php
+                        $user_sql = "SELECT `Administrator_ID`, `Fullname`, `Email_Address`, `Position`, `Location` FROM `admin` WHERE `Position` = 'Area Administrator' ORDER BY `Administrator_ID` ASC";
+                        $user_result = $conn->query($user_sql);
+
+                        if ($user_result &&$user_result->num_rows > 0) {
+                            while ($user_row =$user_result->fetch_assoc()) {
+                                echo "<tr>";
+                                echo "<td><span class='badge bg-light text-dark border'>#" . htmlspecialchars($user_row["Administrator_ID"]) . "</span></td>";
+                                echo "<td class='fw-semibold'>" . htmlspecialchars($user_row["Fullname"]) . "</td>";
+                                echo "<td>" . htmlspecialchars($user_row["Email_Address"]) . "</td>";
+                                echo "<td><span class='badge bg-success-subtle text-success'>" . htmlspecialchars($user_row["Position"]) . "</span></td>";
+                                echo "<td><i class='bi bi-geo-alt text-success me-1'></i>" . (!empty($user_row["Location"]) ? htmlspecialchars($user_row["Location"]) : "Unassigned") . "</td>";
+                                echo "<td class='text-center'>
+                                        <div class='d-inline-flex gap-1'>
+                                            <a href='?action=edit&id=" . htmlspecialchars($user_row["Administrator_ID"]) . "' class='btn btn-outline-primary btn-sm'><i class='bi bi-pencil'></i> Edit</a>
+                                            <form method='POST' action='system_admin.php' onsubmit='return confirm(\"Are you sure you want to remove this administrator?\");' class='d-inline'>
+                                                <input type='hidden' name='id3' value='" . htmlspecialchars($user_row["Administrator_ID"]) . "'>
+                                                <button type='submit' name='dela' class='btn btn-outline-danger btn-sm'><i class='bi bi-trash'></i> Delete</button>
+                                            </form>
+                                        </div>
+                                      </td>";
+                                echo "</tr>";
+                            }
+                        } else {
+                            echo "<tr><td colspan='6' class='text-center py-4 text-muted'>No Area Administrators currently registered in the database.</td></tr>";
+                        }
+                        ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Section 2: Global Consignment & Audit Telemetry Table -->
+        <div class="section-card">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-2">
+                <div>
+                    <h4 class="fw-bold mb-1">Global Consignment Audit & Traceability Feed</h4>
+                    <p class="text-muted small mb-0">System-wide monitoring of aid consignments across all sub-counties and distribution hubs</p>
+                </div>
+                <button onclick="printAuditReport()" class="btn btn-print btn-sm"><i class="bi bi-printer me-1"></i> Export Audit Report</button>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover" id="auditTable">
+                    <thead>
+                        <tr>
+                            <th>Consignment ID</th>
+                            <th>Donor Name</th>
+                            <th>Commodity</th>
+                            <th>Quantity Pledged</th>
+                            <th>Pledge Date</th>
+                            <th>Target Hub</th>
+                            <th>Current Lifecycle Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php
+                        $audit_sql = "
+                            SELECT gd.Dontation_ID, d.Fullname AS DonorName, c.Commodity, gd.Quantity AS DonatedQty, 
+                                   c.Quantity AS CommQtyStr, gd.Date_Donated, gd.Location, gd.Status
+                            FROM goods_donated gd
+                            LEFT JOIN donors d ON gd.Donor_ID = d.Donor_ID
+                            LEFT JOIN commodity c ON gd.Commodity_ID = c.Commodity_ID
+                            ORDER BY gd.Dontation_ID DESC
+                        ";
+                        $audit_res = $conn->query($audit_sql);
+
+                        if ($audit_res &&$audit_res->num_rows > 0) {
+                            while ($a_row = $audit_res->fetch_assoc()) {$unit = '';
+                                if (preg_match('/^\d+(\.\d+)?\s*([a-zA-Z]+)?$/', $a_row['CommQtyStr'] ?? '',$matches)) {
+                                    $unit =$matches[2] ?? '';
                                 }
-                                ?>
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="text-center mt-4">
-                        <a href="reg_area.php" class="btn btn-primary py-md-3 px-md-5">Add New Area Administrator</a>
-                    </div>
-                <?php endif; ?>
+
+                                $status = $a_row['Status'] ?? 'Pending Pickup';$badge_class = 'status-pending';
+                                if ($status === 'Collected')$badge_class = 'status-collected';
+                                if ($status === 'Delivered')$badge_class = 'status-delivered';
+
+                                echo "<tr>";
+                                echo "<td><strong>#" . htmlspecialchars($a_row['Dontation_ID']) . "</strong></td>";
+                                echo "<td>" . htmlspecialchars($a_row['DonorName'] ?? 'Anonymous') . "</td>";
+                                echo "<td class='fw-semibold'>" . htmlspecialchars($a_row['Commodity'] ?? 'Relief Item') . "</td>";
+                                echo "<td>" . htmlspecialchars($a_row['DonatedQty']) . " " . htmlspecialchars($unit) . "</td>";
+                                echo "<td class='text-muted small'>" . htmlspecialchars($a_row['Date_Donated']) . "</td>";
+                                echo "<td><i class='bi bi-geo-alt text-success me-1'></i>" . htmlspecialchars($a_row['Location']) . "</td>";
+                                echo "<td><span class='status-badge {$badge_class}'>{$status}</span></td>";
+                                echo "</tr>";
+                            }
+                        } else {
+                            echo "<tr><td colspan='7' class='text-center py-4 text-muted'>No consignment activity recorded yet.</td></tr>";
+                        }
+                        ?>
+                    </tbody>
+                </table>
             </div>
         </div>
-    </main>
 
-    <div class="container-fluid bg-footer text-white mt-5">
-        <div class="container text-center">
-            <p class="mb-0">&copy; <a class="text-secondary fw-bold" href="#">Food Donation System</a>. All Rights Reserved.</p>
-        </div>
     </div>
+
+    <!-- Footer -->
+    <footer class="site-footer text-center">
+        <div class="container">
+            <p class="mb-0 small text-white-50">&copy; Food Aid Traceability System. All Rights Reserved.</p>
+        </div>
+    </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function printAuditReport() {
+            const tableHtml = document.getElementById("auditTable").outerHTML;
+            const printWin = window.open("", "", "height=700,width=950");
+            printWin.document.write(`
+                <html>
+                <head>
+                    <title>Food Aid Traceability - National Audit Telemetry Report</title>
+                    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+                    <style>
+                        body { font-family: sans-serif; padding: 30px; }
+                        h2, p { text-align: center; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 25px; font-size: 13px; }
+                        th, td { border: 1px solid #cbd5e1; padding: 10px; text-align: left; }
+                        th { background-color: #16a34a; color: white; }
+                    </style>
+                </head>
+                <body>
+                    <h2>Food Aid Traceability System</h2>
+                    <p class="text-muted">Consolidated Consignment Audit & Milestone Log &bull; Generated on: ${new Date().toLocaleString()}</p>
+                    ${tableHtml}
+                </body>
+                </html>
+            `);
+            printWin.document.close();
+            printWin.print();
+            printWin.close();
+        }
+    </script>
 </body>
+
 </html>
 <?php
-// Close the database connection provided by dbconnection.inc.php
 $conn->close();
 ?>

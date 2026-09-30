@@ -60,7 +60,7 @@ if (isset($_POST['adda'])) {
 
         if ($stmt->execute()) {
             $stmt->close();$conn->close();
-            header("Location: index1.php");
+            header("Location: system_admin.php?admin_added=success");
             exit();
         } else {
             die("Admin registration failed: " . $stmt->error);
