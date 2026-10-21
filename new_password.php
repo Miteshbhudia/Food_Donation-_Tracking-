@@ -7,9 +7,7 @@ $error_msg   = '';$success_msg = '';
 // Retrieve target email from session or query parameter
 $email =$_SESSION['reset_email'] ?? $_SESSION['Email'] ?? $_GET['email'] ?? null;
 
-// ==========================================
 // 1. HANDLE PASSWORD UPDATE SUBMISSION
-// ==========================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_password'])) {$target_email = trim($_POST['email'] ?? $email ?? '');
     $new_password =$_POST['new_password'] ?? '';
     $cpassword    =$_POST['confirm_password'] ?? '';
