@@ -1,14 +1,68 @@
 <?php
-require_once 'dbconnection.inc.php';
 session_start();
+date_default_timezone_set('Africa/Nairobi');
+require_once 'dbconnection.inc.php';
 
-// Verify System Admin authentication
-if (!isset($_SESSION['adminname']) and !isset($_SESSION['Email'])) { 
-    header("Location: login_page.html");
+// Format database date/datetime strings cleanly with date + time
+function formatDateTimeDisplay($raw_val) {
+    if (empty($raw_val)) return 'N/A';
+    $ts = strtotime($raw_val);
+    if ($ts === false) return htmlspecialchars($raw_val);
+    if (strlen(trim($raw_val)) > 10 and date('H:i:s', $ts) !== '00:00:00') {
+        return date('M d, Y', $ts) . " <span class='text-success fw-semibold ms-1'><i class='bi bi-clock me-1'></i>" . date('H:i:s', $ts) . "</span>";
+    }
+    return date('M d, Y', $ts);
+}
+
+// ==========================================
+// 1. STRICT SESSION & CONCURRENT LOGIN GUARD
+// ==========================================
+
+// Inactivity Timeout (15 minutes = 900 seconds)
+if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > 900)) {
+    session_unset();
+    session_destroy();
+    header("Location: login_page.html?error=timeout");
+    exit();
+}
+$_SESSION['last_activity'] = time();
+
+// Verify System Admin authentication & role
+$email = $_SESSION['Email'] ?? null;
+if (!$email || !isset($_SESSION['user_role']) || $_SESSION['user_role'] !== 'System Admin' || !isset($_SESSION['session_token'])) {
+    session_unset();
+    session_destroy();
+    header("Location: login_page.html?error=unauthorized");
     exit();
 }
 
-$fullname = $_SESSION['adminname'] ?? 'System Administrator';
+// File-based Single Active Session Token Verification
+$registryFile = __DIR__ . '/active_sessions.json';
+if (file_exists($registryFile)) {
+    $sessions = json_decode(file_get_contents($registryFile), true) ?: [];
+    if (!isset($sessions[$email]) || $sessions[$email]['token'] !== $_SESSION['session_token']) {
+        session_unset();
+        session_destroy();
+        header("Location: login_page.html?error=concurrent");
+        exit();
+    }
+}
+
+// Fetch current admin details from database for profile management
+$stmt_admin = $conn->prepare("SELECT Administrator_ID, Fullname, Location FROM `admin` WHERE `Email_Address` = ? AND `Position` = 'System Administrator'");
+$stmt_admin->bind_param("s", $email);
+$stmt_admin->execute();
+$sys_admin_data = $stmt_admin->get_result()->fetch_assoc();
+$stmt_admin->close();
+
+if (!$sys_admin_data) {
+    session_unset(); session_destroy();
+    header("Location: login_page.html"); exit();
+}
+
+$fullname = $sys_admin_data['Fullname'];
+$admin_id = $sys_admin_data['Administrator_ID'];
+$admin_location = $sys_admin_data['Location'];
 
 // Read and clear flash messages (Post-Redirect-Get Pattern)
 $flash_success = $_SESSION['flash_success'] ?? null;
@@ -24,20 +78,49 @@ $donor_to_edit    = null;
 $active_tab = $_GET['tab'] ?? 'area_admins';
 
 // ==========================================
-// 1. HANDLE FORM SUBMISSIONS (PRG PATTERN)
+// 2. HANDLE FORM SUBMISSIONS (PRG PATTERN)
 // ==========================================
 
-// A. Handle Administrator Update
+// A. Handle System Admin Profile Update (Self-Service)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
+    $up_name  = trim($_POST['fullname'] ?? '');
+    $up_loc   = trim($_POST['location'] ?? '');
+    $up_pass  = $_POST['new_password'] ?? '';
+    
+    if (!empty($up_name)) {
+        if (!empty($up_pass)) {
+            $new_hash = password_hash($up_pass, PASSWORD_BCRYPT);
+            $stmt_upd = $conn->prepare("UPDATE `admin` SET `Fullname` = ?, `Location` = ?, `Password` = ? WHERE `Administrator_ID` = ?");
+            $stmt_upd->bind_param("sssi", $up_name, $up_loc, $new_hash, $admin_id);
+        } else {
+            $stmt_upd = $conn->prepare("UPDATE `admin` SET `Fullname` = ?, `Location` = ? WHERE `Administrator_ID` = ?");
+            $stmt_upd->bind_param("ssi", $up_name, $up_loc, $admin_id);
+        }
+        
+        if ($stmt_upd->execute()) {
+            $_SESSION['flash_success'] = "Your profile settings were updated successfully.";
+            $_SESSION['adminname'] = $up_name;
+        } else {
+            $_SESSION['flash_error'] = "Failed to update profile due to a system error.";
+        }
+        $stmt_upd->close();
+        header("Location: system_admin.php?tab=" . urlencode($active_tab));
+        exit();
+    }
+}
+
+
+// B. Handle Administrator Update (Managing other users)
 if (isset($_POST['update_admin'])) {
-    $admin_id           = intval($_POST['admin_id'] ?? 0);
+    $m_admin_id         = intval($_POST['admin_id'] ?? 0);
     $fullname_edit      = trim($_POST['fullname'] ?? '');
     $email_address_edit = trim($_POST['email_address'] ?? '');
     $location_edit      = trim($_POST['location'] ?? '');
     $target_tab         = trim($_POST['target_tab'] ?? 'area_admins');
 
-    if (!empty($admin_id) and !empty($fullname_edit) and !empty($email_address_edit)) {
+    if (!empty($m_admin_id) && !empty($fullname_edit) && !empty($email_address_edit)) {
         $stmt = $conn->prepare("UPDATE `admin` SET `Fullname` = ?, `Email_Address` = ?, `Location` = ? WHERE `Administrator_ID` = ?");
-        $stmt->bind_param("sssi", $fullname_edit, $email_address_edit, $location_edit, $admin_id);
+        $stmt->bind_param("sssi", $fullname_edit, $email_address_edit, $location_edit, $m_admin_id);
 
         if ($stmt->execute()) {
             $_SESSION['flash_success'] = "Administrator profile <strong>" . htmlspecialchars($fullname_edit) . "</strong> updated successfully!";
@@ -52,14 +135,14 @@ if (isset($_POST['update_admin'])) {
     exit();
 }
 
-// B. Handle Donor Update
+// C. Handle Donor Update
 if (isset($_POST['update_donor'])) {
     $donor_id           = intval($_POST['donor_id'] ?? 0);
     $fullname_edit      = trim($_POST['fullname'] ?? '');
     $email_address_edit = trim($_POST['email_address'] ?? '');
     $phone_edit         = trim($_POST['phone_number'] ?? '');
 
-    if (!empty($donor_id) and !empty($fullname_edit) and !empty($email_address_edit)) {
+    if (!empty($donor_id) && !empty($fullname_edit) && !empty($email_address_edit)) {
         $stmt = $conn->prepare("UPDATE `donors` SET `Fullname` = ?, `Email_Address` = ?, `Phone_Number` = ? WHERE `Donor_ID` = ?");
         $stmt->bind_param("sssi", $fullname_edit, $email_address_edit, $phone_edit, $donor_id);
 
@@ -76,7 +159,7 @@ if (isset($_POST['update_donor'])) {
     exit();
 }
 
-// C. Handle Administrator Deletion
+// D. Handle Administrator Deletion
 if (isset($_POST['dela'])) {
     $id_to_delete = intval($_POST['id3'] ?? 0);
     $del_tab      = trim($_POST['from_tab'] ?? 'area_admins');
@@ -94,7 +177,7 @@ if (isset($_POST['dela'])) {
     exit();
 }
 
-// D. Handle Donor Deletion
+// E. Handle Donor Deletion
 if (isset($_POST['del_donor'])) {
     $donor_id_to_del = intval($_POST['donor_id'] ?? 0);
 
@@ -112,7 +195,7 @@ if (isset($_POST['del_donor'])) {
 }
 
 // Check for Administrator Edit Request
-if (isset($_GET['action']) and $_GET['action'] === 'edit' and isset($_GET['id'])) {
+if (isset($_GET['action']) && $_GET['action'] === 'edit' && isset($_GET['id'])) {
     $admin_id_to_fetch = intval($_GET['id']);
 
     $stmt = $conn->prepare("SELECT `Administrator_ID`, `Fullname`, `Email_Address`, `Position`, `Location` FROM `admin` WHERE `Administrator_ID` = ?");
@@ -130,7 +213,7 @@ if (isset($_GET['action']) and $_GET['action'] === 'edit' and isset($_GET['id'])
 }
 
 // Check for Donor Edit Request
-if (isset($_GET['action']) and $_GET['action'] === 'edit_donor' and isset($_GET['id'])) {
+if (isset($_GET['action']) && $_GET['action'] === 'edit_donor' && isset($_GET['id'])) {
     $donor_id_to_fetch = intval($_GET['id']);
 
     $stmt = $conn->prepare("SELECT `Donor_ID`, `Fullname`, `Email_Address`, `Phone_Number` FROM `donors` WHERE `Donor_ID` = ?");
@@ -148,7 +231,7 @@ if (isset($_GET['action']) and $_GET['action'] === 'edit_donor' and isset($_GET[
 }
 
 // ==========================================
-// 2. FETCH DASHBOARD STATISTICS
+// 3. FETCH DASHBOARD STATISTICS
 // ==========================================
 $donor_res = $conn->query("SELECT COUNT(*) as total FROM `donors`");
 $total_donors = $donor_res->fetch_assoc()['total'] ?? 0;
@@ -191,7 +274,57 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
             --gray-body: #64748b;
             --bg-light: #f8fafc;
             --card-border: #e2e8f0;
+            --bg-card: #ffffff;
         }
+
+        /* Dark Mode Overrides */
+        body.dark-mode { 
+            --dark: #f8fafc; 
+            --bg-light: #0f172a; 
+            --card-border: #334155; 
+            --gray-body: #94a3b8; 
+            --bg-card: #1e293b; 
+            color: #f8fafc; 
+        }
+        body.dark-mode .navbar, 
+        body.dark-mode .section-card, 
+        body.dark-mode .stat-widget, 
+        body.dark-mode .modal-content, 
+        body.dark-mode .dropdown-menu { background-color: var(--bg-card); border-color: var(--card-border); color: #f8fafc; }
+        
+        /* Force light grey for muted text and placeholders in dark mode */
+        body.dark-mode .text-muted { color: #94a3b8 !important; }
+        body.dark-mode input::placeholder { color: #64748b !important; }
+        
+        /* Fixed Table Dark Mode */
+        body.dark-mode .table { --bs-table-bg: transparent; color: #f8fafc; border-color: var(--card-border); }
+        body.dark-mode .table thead th { background-color: #0f172a !important; color: #94a3b8 !important; border-color: var(--card-border); }
+        body.dark-mode .table tbody td { background-color: var(--bg-card) !important; color: #f8fafc !important; border-color: var(--card-border); }
+        body.dark-mode .table-hover tbody tr:hover td { background-color: #334155 !important; color: #f8fafc !important; }
+        
+        body.dark-mode input.form-control, 
+        body.dark-mode select.form-select,
+        body.dark-mode .input-group-text, 
+        body.dark-mode .search-input-box input { background-color: #0f172a; color: #f8fafc; border-color: var(--card-border); }
+        body.dark-mode .btn-print, body.dark-mode .btn-outline-secondary { background-color: transparent; border-color: var(--card-border); color: #94a3b8; }
+        body.dark-mode .btn-print:hover, body.dark-mode .btn-outline-secondary:hover { background-color: #334155; color: #f8fafc; }
+        body.dark-mode .dropdown-item { color: #f8fafc; }
+        body.dark-mode .dropdown-item:hover { background-color: #334155; color: #ffffff; }
+        
+        /* Nav Tabs in Dark Mode */
+        body.dark-mode .nav-tabs { border-bottom-color: var(--card-border); }
+        body.dark-mode .nav-tabs .nav-link { color: #94a3b8; }
+        body.dark-mode .nav-tabs .nav-link:hover { color: #f8fafc; }
+        body.dark-mode .nav-tabs .nav-link.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+        /* HIDE GOOGLE TRANSLATE UGLY ELEMENTS COMPLETELY */
+        body { top: 0 !important; }
+        .skiptranslate { display: none !important; }
+        #google_translate_element { display: none !important; }
+        .goog-te-banner-frame { display: none !important; }
+        .goog-tooltip { display: none !important; }
+        .goog-tooltip:hover { display: none !important; }
+        .goog-text-highlight { background-color: transparent !important; border: none !important; box-shadow: none !important; }
 
         html {
             scroll-behavior: smooth;
@@ -202,11 +335,13 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
             background-color: var(--bg-light);
             color: var(--dark);
             min-height: 100vh;
+            transition: background-color 0.3s, color 0.3s;
         }
 
         .navbar {
-            background-color: #ffffff;
+            background-color: var(--bg-card);
             border-bottom: 1px solid var(--card-border);
+            transition: background-color 0.3s;
         }
         .brand-title {
             font-size: 1.5rem;
@@ -226,23 +361,24 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
         }
 
         .section-card {
-            background: #ffffff;
+            background: var(--bg-card);
             border: 1px solid var(--card-border);
             border-radius: 16px;
             box-shadow: 0 8px 25px rgba(15, 23, 42, 0.04);
             padding: 2.25rem;
             margin-bottom: 2.5rem;
             scroll-margin-top: 100px;
+            transition: background-color 0.3s;
         }
 
         /* Stat Cards */
         .stat-widget {
-            background: #ffffff;
+            background: var(--bg-card);
             border: 1px solid var(--card-border);
             border-radius: 14px;
             padding: 1.75rem 1.5rem;
             box-shadow: 0 4px 15px rgba(15, 23, 42, 0.03);
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.3s;
             height: 100%;
         }
         .stat-widget:hover {
@@ -313,7 +449,7 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
             vertical-align: middle;
             font-size: 0.92rem;
             padding: 0.9rem 1rem;
-            color: #1e293b;
+            color: var(--dark);
         }
 
         .btn-primary-custom {
@@ -334,7 +470,7 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
         }
 
         .btn-print {
-            background-color: #ffffff;
+            background-color: var(--bg-card);
             border: 1px solid var(--card-border);
             color: var(--gray-body);
             font-weight: 600;
@@ -348,16 +484,25 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
             color: var(--dark);
         }
 
-        /* Status Badges */
+        /* Status Badges & Timestamps */
         .status-badge {
             font-size: 0.775rem;
             font-weight: 600;
             padding: 0.35rem 0.75rem;
             border-radius: 50px;
+            display: inline-block;
         }
         .status-pending { background-color: #fef3c7; color: #92400e; }
         .status-collected { background-color: #e0f2fe; color: #0369a1; }
         .status-delivered { background-color: #dcfce7; color: #166534; }
+
+        .timestamp-small {
+            display: block;
+            font-size: 0.75rem;
+            color: var(--gray-body);
+            margin-top: 0.25rem;
+            font-weight: normal;
+        }
 
         .search-input-box {
             position: relative;
@@ -389,17 +534,51 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
             margin-top: 5rem;
         }
     </style>
+    
+    <!-- Instant Dark Mode Applicator (Prevents white flash on load) -->
+    <script>
+        if (localStorage.getItem('foodtrace_theme') === 'dark') {
+            document.documentElement.classList.add('dark-mode');
+            document.addEventListener("DOMContentLoaded", function() {
+                document.body.classList.add('dark-mode');
+            });
+        }
+    </script>
 </head>
 
 <body>
+    <!-- Hidden Google Translate Element -->
+    <div id="google_translate_element" style="display:none;"></div>
+
     <!-- Top Navigation -->
     <nav class="navbar navbar-expand-lg sticky-top">
         <div class="container">
             <a href="system_admin.php" class="brand-title">Food<span>Trace</span> <span class="badge bg-success-subtle text-success border border-success-subtle fs-6 fw-semibold ms-2">System Admin</span></a>
-            <div class="ms-auto d-flex align-items-center gap-3">
-                <span class="small text-muted d-none d-md-inline"><i class="bi bi-shield-lock-fill text-success me-1"></i><?php echo htmlspecialchars($fullname); ?></span>
-                <a href="homepage.html" class="btn btn-outline-secondary btn-sm">Home</a>
-                <a href="logout.php" class="btn btn-outline-danger btn-sm"><i class="bi bi-box-arrow-right me-1"></i>Logout</a>
+            <div class="ms-auto d-flex align-items-center gap-2">
+                <span class="small text-muted d-none d-md-inline me-2"><i class="bi bi-shield-lock-fill text-success me-1"></i><?php echo htmlspecialchars($fullname); ?></span>
+                
+                <!-- Native Language Dropdown -->
+                <div class="dropdown me-2">
+                    <button class="btn btn-outline-secondary btn-sm dropdown-toggle fw-semibold" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-translate me-1"></i> <span id="currentLangText">English</span>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end shadow border-0">
+                        <li><a class="dropdown-item small py-2" href="#" onclick="changeLanguage('en'); return false;">English (EN)</a></li>
+                        <li><a class="dropdown-item small py-2" href="#" onclick="changeLanguage('sw'); return false;">Kiswahili (SW)</a></li>
+                    </ul>
+                </div>
+
+                <!-- Dark Mode Toggle -->
+                <button id="themeToggle" class="btn btn-outline-secondary btn-sm rounded-circle me-1" onclick="toggleTheme()" title="Toggle Dark/Light Mode">
+                    <i class="bi bi-moon-stars-fill" id="themeIcon"></i>
+                </button>
+
+                <!-- Profile Settings Modal Trigger -->
+                <button class="btn btn-outline-secondary btn-sm me-2" data-bs-toggle="modal" data-bs-target="#profileModal" title="Account Settings">
+                    <i class="bi bi-gear-fill"></i>
+                </button>
+
+                <a href="logout.php" class="btn btn-outline-danger btn-sm"><i class="bi bi-box-arrow-right d-none d-md-inline me-1"></i>Logout</a>
             </div>
         </div>
     </nav>
@@ -437,33 +616,33 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
         <?php endif; ?>
 
         <!-- Key Metrics Cards -->
-        <div class="row g-4 mb-4">
+        <div class="row g-4 mb-4" id="metricCards">
             <div class="col-lg-3 col-md-6">
                 <div class="stat-widget">
                     <div class="stat-icon-wrap"><i class="bi bi-people-fill"></i></div>
                     <h6>Total Donors</h6>
-                    <p class="stat-number"><?php echo htmlspecialchars($total_donors); ?></p>
+                    <p class="stat-number" id="stat-donors"><?php echo htmlspecialchars($total_donors); ?></p>
                 </div>
             </div>
             <div class="col-lg-3 col-md-6">
                 <div class="stat-widget">
                     <div class="stat-icon-wrap"><i class="bi bi-shield-check"></i></div>
                     <h6>Area Administrators</h6>
-                    <p class="stat-number"><?php echo htmlspecialchars($total_admins); ?></p>
+                    <p class="stat-number" id="stat-admins"><?php echo htmlspecialchars($total_admins); ?></p>
                 </div>
             </div>
             <div class="col-lg-3 col-md-6">
                 <div class="stat-widget">
                     <div class="stat-icon-wrap"><i class="bi bi-box-seam-fill"></i></div>
                     <h6>Total Donations</h6>
-                    <p class="stat-number"><?php echo htmlspecialchars($total_donations); ?></p>
+                    <p class="stat-number" id="stat-donations"><?php echo htmlspecialchars($total_donations); ?></p>
                 </div>
             </div>
             <div class="col-lg-3 col-md-6">
                 <div class="stat-widget">
                     <div class="stat-icon-wrap"><i class="bi bi-card-checklist"></i></div>
                     <h6>Total Needs Listed</h6>
-                    <p class="stat-number"><?php echo htmlspecialchars($total_commodities); ?></p>
+                    <p class="stat-number" id="stat-needs"><?php echo htmlspecialchars($total_commodities); ?></p>
                 </div>
             </div>
         </div>
@@ -566,19 +745,19 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
                 <li class="nav-item" role="presentation">
                     <button class="nav-link <?php echo ($active_tab === 'area_admins') ? 'active' : ''; ?>" id="area-admins-tab" data-bs-toggle="tab" data-bs-target="#areaAdminsPane" type="button" role="tab" onclick="syncTabState('area_admins')">
                         <i class="bi bi-geo-alt-fill text-success me-1"></i> Area Administrators 
-                        <span class="badge bg-success-subtle text-success ms-1 rounded-pill"><?php echo htmlspecialchars($total_admins); ?></span>
+                        <span class="badge bg-success-subtle text-success ms-1 rounded-pill" id="badge-admins"><?php echo htmlspecialchars($total_admins); ?></span>
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
                     <button class="nav-link <?php echo ($active_tab === 'system_admins') ? 'active' : ''; ?>" id="system-admins-tab" data-bs-toggle="tab" data-bs-target="#systemAdminsPane" type="button" role="tab" onclick="syncTabState('system_admins')">
                         <i class="bi bi-shield-lock-fill text-dark me-1"></i> System Administrators 
-                        <span class="badge bg-secondary-subtle text-secondary ms-1 rounded-pill"><?php echo htmlspecialchars($total_sys_admins); ?></span>
+                        <span class="badge bg-secondary-subtle text-secondary ms-1 rounded-pill" id="badge-sysadmins"><?php echo htmlspecialchars($total_sys_admins); ?></span>
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
                     <button class="nav-link <?php echo ($active_tab === 'donors') ? 'active' : ''; ?>" id="donors-tab" data-bs-toggle="tab" data-bs-target="#donorsPane" type="button" role="tab" onclick="syncTabState('donors')">
                         <i class="bi bi-people-fill text-primary me-1"></i> Registered Donors 
-                        <span class="badge bg-primary-subtle text-primary ms-1 rounded-pill"><?php echo htmlspecialchars($total_donors); ?></span>
+                        <span class="badge bg-primary-subtle text-primary ms-1 rounded-pill" id="badge-donors"><?php echo htmlspecialchars($total_donors); ?></span>
                     </button>
                 </li>
             </ul>
@@ -588,7 +767,7 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
                 <!-- Tab 1: Area Administrators -->
                 <div class="tab-pane fade <?php echo ($active_tab === 'area_admins') ? 'show active' : ''; ?>" id="areaAdminsPane" role="tabpanel">
                     <div class="table-responsive">
-                        <table class="table table-hover table-filterable">
+                        <table class="table table-hover table-filterable" id="areaAdminTable">
                             <thead>
                                 <tr>
                                     <th>Admin ID</th>
@@ -603,8 +782,8 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
                                 $area_sql = "SELECT `Administrator_ID`, `Fullname`, `Email_Address`, `Location` FROM `admin` WHERE `Position` = 'Area Administrator' ORDER BY `Administrator_ID` ASC";
                                 $area_res = $conn->query($area_sql);
 
-                                if ($area_res &&$area_res->num_rows > 0) {
-                                    while ($a_row =$area_res->fetch_assoc()) {
+                                if ($area_res && $area_res->num_rows > 0) {
+                                    while ($a_row = $area_res->fetch_assoc()) {
                                         echo "<tr>";
                                         echo "<td><span class='badge bg-light text-dark border'>#" . htmlspecialchars($a_row["Administrator_ID"]) . "</span></td>";
                                         echo "<td class='fw-semibold filter-target'>" . htmlspecialchars($a_row["Fullname"]) . "</td>";
@@ -634,7 +813,7 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
                 <!-- Tab 2: System Administrators -->
                 <div class="tab-pane fade <?php echo ($active_tab === 'system_admins') ? 'show active' : ''; ?>" id="systemAdminsPane" role="tabpanel">
                     <div class="table-responsive">
-                        <table class="table table-hover table-filterable">
+                        <table class="table table-hover table-filterable" id="sysAdminTable">
                             <thead>
                                 <tr>
                                     <th>Admin ID</th>
@@ -649,8 +828,8 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
                                 $sys_sql = "SELECT `Administrator_ID`, `Fullname`, `Email_Address`, `Location` FROM `admin` WHERE `Position` = 'System Administrator' ORDER BY `Administrator_ID` ASC";
                                 $sys_res = $conn->query($sys_sql);
 
-                                if ($sys_res &&$sys_res->num_rows > 0) {
-                                    while ($s_row =$sys_res->fetch_assoc()) {
+                                if ($sys_res && $sys_res->num_rows > 0) {
+                                    while ($s_row = $sys_res->fetch_assoc()) {
                                         echo "<tr>";
                                         echo "<td><span class='badge bg-light text-dark border'>#" . htmlspecialchars($s_row["Administrator_ID"]) . "</span></td>";
                                         echo "<td class='fw-semibold filter-target'>" . htmlspecialchars($s_row["Fullname"]) . "</td>";
@@ -680,7 +859,7 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
                 <!-- Tab 3: Registered Donors -->
                 <div class="tab-pane fade <?php echo ($active_tab === 'donors') ? 'show active' : ''; ?>" id="donorsPane" role="tabpanel">
                     <div class="table-responsive">
-                        <table class="table table-hover table-filterable">
+                        <table class="table table-hover table-filterable" id="donorTable">
                             <thead>
                                 <tr>
                                     <th>Donor ID</th>
@@ -695,8 +874,8 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
                                 $donor_list_sql = "SELECT `Donor_ID`, `Fullname`, `Email_Address`, `Phone_Number` FROM `donors` ORDER BY `Donor_ID` ASC";
                                 $donor_list_res = $conn->query($donor_list_sql);
 
-                                if ($donor_list_res &&$donor_list_res->num_rows > 0) {
-                                    while ($d_row =$donor_list_res->fetch_assoc()) {
+                                if ($donor_list_res && $donor_list_res->num_rows > 0) {
+                                    while ($d_row = $donor_list_res->fetch_assoc()) {
                                         echo "<tr>";
                                         echo "<td><span class='badge bg-light text-dark border'>#" . htmlspecialchars($d_row["Donor_ID"]) . "</span></td>";
                                         echo "<td class='fw-semibold filter-target'>" . htmlspecialchars($d_row["Fullname"]) . "</td>";
@@ -743,16 +922,20 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
                             <th>Donor Name</th>
                             <th>Commodity</th>
                             <th>Quantity Pledged</th>
-                            <th>Pledge Date</th>
+                            <th>Pledge Date & Time</th>
                             <th>Target Hub</th>
-                            <th>Current Lifecycle Status</th>
+                            <th>Status & Timestamp</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="auditTableBody">
                         <?php
+                        $chk = $conn->query("SHOW COLUMNS FROM `goods_donated` LIKE 'Pledged_At'");
+                        $has_times = ($chk && $chk->num_rows > 0);
+
                         $audit_sql = "
                             SELECT gd.Dontation_ID, d.Fullname AS DonorName, c.Commodity, gd.Quantity AS DonatedQty, 
                                    c.Quantity AS CommQtyStr, gd.Date_Donated, gd.Location, gd.Status
+                                   " . ($has_times ? ", gd.Pledged_At, gd.Collected_At, gd.Delivered_At" : "") . "
                             FROM goods_donated gd
                             LEFT JOIN donors d ON gd.Donor_ID = d.Donor_ID
                             LEFT JOIN commodity c ON gd.Commodity_ID = c.Commodity_ID
@@ -760,24 +943,45 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
                         ";
                         $audit_res = $conn->query($audit_sql);
 
-                        if ($audit_res &&$audit_res->num_rows > 0) {
-                            while ($a_row = $audit_res->fetch_assoc()) {$unit = '';
-                                if (preg_match('/^\d+(\.\d+)?\s*([a-zA-Z]+)?$/', $a_row['CommQtyStr'] ?? '',$matches)) {
-                                    $unit =$matches[2] ?? '';
+                        if ($audit_res && $audit_res->num_rows > 0) {
+                            while ($a_row = $audit_res->fetch_assoc()) {
+                                $unit = '';
+                                if (preg_match('/^\d+(\.\d+)?\s*([a-zA-Z]+)?$/', $a_row['CommQtyStr'] ?? '', $matches)) {
+                                    $unit = $matches[2] ?? '';
                                 }
 
-                                $status = $a_row['Status'] ?? 'Pending Pickup';$badge_class = 'status-pending';
-                                if ($status === 'Collected')$badge_class = 'status-collected';
-                                if ($status === 'Delivered')$badge_class = 'status-delivered';
+                                $pledge_raw = !empty($a_row['Pledged_At']) ? $a_row['Pledged_At'] : $a_row['Date_Donated'];
+                                $status = $a_row['Status'] ?? 'Pending Pickup';
+                                $badge_class = 'status-pending';
+                                $time_html = '';
+                                
+                                if ($status === "Pending Pickup" and !empty($pledge_raw)) {
+                                    $time_html = "<span class='timestamp-small'><i class='bi bi-clock me-1'></i>" . date('M d, H:i:s', strtotime($pledge_raw)) . "</span>";
+                                } elseif ($status === 'Collected') {
+                                    $badge_class = 'status-collected';
+                                    if (!empty($a_row['Collected_At'])) {
+                                        $time_html = "<span class='timestamp-small'><i class='bi bi-clock me-1'></i>" . date('M d, H:i:s', strtotime($a_row['Collected_At'])) . "</span>";
+                                    }
+                                } elseif ($status === 'Delivered') {
+                                    $badge_class = 'status-delivered';
+                                    if (!empty($a_row['Delivered_At'])) {
+                                        $time_html = "<span class='timestamp-small'><i class='bi bi-clock me-1'></i>" . date('M d, H:i:s', strtotime($a_row['Delivered_At'])) . "</span>";
+                                    }
+                                }
 
                                 echo "<tr>";
                                 echo "<td><strong>#" . htmlspecialchars($a_row['Dontation_ID']) . "</strong></td>";
                                 echo "<td>" . htmlspecialchars($a_row['DonorName'] ?? 'Anonymous') . "</td>";
                                 echo "<td class='fw-semibold'>" . htmlspecialchars($a_row['Commodity'] ?? 'Relief Item') . "</td>";
                                 echo "<td>" . htmlspecialchars($a_row['DonatedQty']) . " " . htmlspecialchars($unit) . "</td>";
-                                echo "<td class='text-muted small'>" . htmlspecialchars($a_row['Date_Donated']) . "</td>";
+                                echo "<td class='text-muted small'>" . formatDateTimeDisplay($pledge_raw) . "</td>";
                                 echo "<td><i class='bi bi-geo-alt text-success me-1'></i>" . htmlspecialchars($a_row['Location']) . "</td>";
-                                echo "<td><span class='status-badge {$badge_class}'>{$status}</span></td>";
+                                echo "<td>
+                                        <div class='d-flex flex-column align-items-start'>
+                                            <span class='status-badge {$badge_class}'>{$status}</span>
+                                            {$time_html}
+                                        </div>
+                                      </td>";
                                 echo "</tr>";
                             }
                         } else {
@@ -791,6 +995,45 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
 
     </div>
 
+    <!-- Self-Service Profile Modal (System Admin) -->
+    <div class="modal fade" id="profileModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-person-gear text-success me-2"></i>Account Settings</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" action="system_admin.php">
+                    <input type="hidden" name="update_profile" value="1">
+                    <div class="modal-body p-4">
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Email Address (Read Only)</label>
+                            <input type="email" class="form-control" value="<?php echo htmlspecialchars($email); ?>" disabled style="background-color: var(--card-border);">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Full Name</label>
+                            <input type="text" name="fullname" class="form-control" value="<?php echo htmlspecialchars($fullname); ?>" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">HQ Location / Office</label>
+                            <input type="text" name="location" class="form-control" value="<?php echo htmlspecialchars($admin_location); ?>" required>
+                        </div>
+                        <hr class="my-4 border-secondary">
+                        <h6 class="fw-bold mb-3">Security</h6>
+                        <div class="mb-2">
+                            <label class="form-label small fw-semibold">Change Password <span class="text-muted fw-normal">(Leave blank to keep current)</span></label>
+                            <input type="password" name="new_password" class="form-control" placeholder="Enter new secure password">
+                        </div>
+                    </div>
+                    <div class="modal-footer border-0">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary-custom">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <!-- Footer -->
     <footer class="site-footer text-center">
         <div class="container">
@@ -798,8 +1041,56 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
         </div>
     </footer>
 
+    <!-- Native Swahili/English Translation Script -->
+    <script type="text/javascript" src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+    <script type="text/javascript">
+        function googleTranslateElementInit() {
+            new google.translate.TranslateElement({ pageLanguage: 'en', autoDisplay: false }, 'google_translate_element');
+        }
+
+        // Custom Toggle to bypass ugly Google UI
+        function changeLanguage(lang) {
+            const domain = window.location.hostname;
+            if (lang === 'sw') {
+                document.cookie = `googtrans=/en/sw; path=/`;
+                if(domain !== 'localhost' && domain !== '127.0.0.1') document.cookie = `googtrans=/en/sw; domain=${domain}; path=/`;
+            } else {
+                document.cookie = `googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/`;
+                if(domain !== 'localhost' && domain !== '127.0.0.1') document.cookie = `googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; domain=${domain}; path=/`;
+            }
+            window.location.reload();
+        }
+
+        // Highlight active language text on load
+        document.addEventListener("DOMContentLoaded", function() {
+            const langText = document.getElementById('currentLangText');
+            if (document.cookie.includes('googtrans=/en/sw')) {
+                if(langText) langText.innerText = 'Kiswahili';
+            } else {
+                if(langText) langText.innerText = 'English';
+            }
+        });
+    </script>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // Dark Mode Theme Logic
+        const themeToggleBtn = document.getElementById('themeToggle');
+        const themeIcon = document.getElementById('themeIcon');
+        
+        const savedTheme = localStorage.getItem('foodtrace_theme');
+        if (savedTheme === 'dark') {
+            document.body.classList.add('dark-mode');
+            if (themeIcon) themeIcon.className = 'bi bi-sun-fill text-warning';
+        }
+
+        function toggleTheme() {
+            document.body.classList.toggle('dark-mode');
+            const isDark = document.body.classList.contains('dark-mode');
+            localStorage.setItem('foodtrace_theme', isDark ? 'dark' : 'light');
+            if (themeIcon) themeIcon.className = isDark ? 'bi bi-sun-fill text-warning' : 'bi bi-moon-stars-fill';
+        }
+
         // Update URL state without page reload when user changes tabs
         function syncTabState(tabName) {
             const url = new URL(window.location.href);
@@ -809,20 +1100,48 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
             window.history.replaceState({}, '', url.toString());
         }
 
-        // Automatic smooth scroll to the edit card on load
+        // ==========================================
+        // SILENT AJAX POLLING - LIVE DATA SYNC
+        // ==========================================
+        setInterval(() => {
+            fetch(window.location.href)
+                .then(res => res.text())
+                .then(html => {
+                    const doc = new DOMParser().parseFromString(html, 'text/html');
+
+                    ['stat-donors', 'stat-admins', 'stat-donations', 'stat-needs'].forEach(id => {
+                        const newEl = doc.getElementById(id); const oldEl = document.getElementById(id);
+                        if (newEl && oldEl) oldEl.textContent = newEl.textContent;
+                    });
+
+                    ['badge-admins', 'badge-sysadmins', 'badge-donors'].forEach(id => {
+                        const newEl = doc.getElementById(id); const oldEl = document.getElementById(id);
+                        if (newEl && oldEl) oldEl.textContent = newEl.textContent;
+                    });
+
+                    if (document.activeElement.id !== 'accountSearchInput') {
+                        const newAuditBody = doc.getElementById('auditTableBody'); const oldAuditBody = document.getElementById('auditTableBody');
+                        if (newAuditBody && oldAuditBody) oldAuditBody.innerHTML = newAuditBody.innerHTML;
+                        
+                        const tablesToUpdate = ['areaAdminTable', 'sysAdminTable', 'donorTable'];
+                        tablesToUpdate.forEach(tableId => {
+                            const newTable = doc.getElementById(tableId); const oldTable = document.getElementById(tableId);
+                            if (newTable && oldTable) { oldTable.querySelector('tbody').innerHTML = newTable.querySelector('tbody').innerHTML; }
+                        });
+                    }
+                })
+                .catch(err => console.log('Live sync paused'));
+        }, 4000);
+
         document.addEventListener('DOMContentLoaded', function() {
             const editSection = document.getElementById('editSection');
-            if (editSection) {
-                editSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
+            if (editSection) { editSection.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
 
-            // Real-Time Table Search Filter
             const searchInput = document.getElementById('accountSearchInput');
             if (searchInput) {
                 searchInput.addEventListener('input', function() {
                     const filter = this.value.toLowerCase().trim();
                     const tables = document.querySelectorAll('.table-filterable tbody');
-
                     tables.forEach(tbody => {
                         const rows = tbody.querySelectorAll('tr');
                         rows.forEach(row => {
@@ -834,37 +1153,14 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
             }
         });
 
-        // Print Report
         function printAuditReport() {
             const tableHtml = document.getElementById("auditTable").outerHTML;
             const printWin = window.open("", "", "height=700,width=950");
-            printWin.document.write(`
-                <html>
-                <head>
-                    <title>Food Aid Traceability - National Audit Telemetry Report</title>
-                    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-                    <style>
-                        body { font-family: sans-serif; padding: 30px; }
-                        h2, p { text-align: center; }
-                        table { width: 100%; border-collapse: collapse; margin-top: 25px; font-size: 13px; }
-                        th, td { border: 1px solid #cbd5e1; padding: 10px; text-align: left; }
-                        th { background-color: #16a34a; color: white; }
-                    </style>
-                </head>
-                <body>
-                    <h2>Food Aid Traceability System</h2>
-                    <p class="text-muted">Consolidated Consignment Audit & Milestone Log &bull; Generated on: ${new Date().toLocaleString()}</p>
-                    ${tableHtml}
-                </body>
-                </html>
-            `);
-            printWin.document.close();
-            printWin.print();
-            printWin.close();
+            printWin.document.write(`<html><head><title>Food Aid Traceability - National Audit Telemetry Report</title><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"><style>body { font-family: sans-serif; padding: 30px; } h2, p { text-align: center; } table { width: 100%; border-collapse: collapse; margin-top: 25px; font-size: 13px; } th, td { border: 1px solid #cbd5e1; padding: 10px; text-align: left; } th { background-color: #16a34a; color: white; }</style></head><body><h2>Food Aid Traceability System</h2><p class="text-muted">Consolidated Consignment Audit & Milestone Log &bull; Generated on: ${new Date().toLocaleString()}</p>${tableHtml}</body></html>`);
+            printWin.document.close(); printWin.print(); printWin.close();
         }
     </script>
 </body>
-
 </html>
 <?php
 $conn->close();

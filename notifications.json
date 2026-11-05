@@ -1,0 +1,68 @@
+[
+    {
+        "id": "notif_6aec4a49a45413.37042011",
+        "recipient_role": "Donor",
+        "recipient_id": 1,
+        "location": "Nairobi",
+        "title": "Consignment Delivered! \u2014 #3",
+        "message": "Your pledge of 20 of maize has been distributed to beneficiaries from Nairobi Hub. Thank you!",
+        "timestamp": "2026-11-05 12:20:09",
+        "stage": "Delivered",
+        "is_read": false
+    },
+    {
+        "id": "notif_6adee78f60ee26.32182413",
+        "recipient_role": "Donor",
+        "recipient_id": 1,
+        "location": "Nairobi",
+        "title": "Consignment Collected \u2014 #3",
+        "message": "Your pledge of 20 of maize was successfully received at Nairobi Hub.",
+        "timestamp": "2026-10-26 08:39:27",
+        "stage": "Collected",
+        "is_read": false
+    },
+    {
+        "id": "notif_6adedafb1c6a74.78900987",
+        "recipient_role": "Donor",
+        "recipient_id": 1,
+        "location": "Nairobi",
+        "title": "Consignment Delivered! \u2014 #4",
+        "message": "Your pledge of 12 of maize has been distributed to beneficiaries from Nairobi Hub. Thank you!",
+        "timestamp": "2026-10-26 07:45:47",
+        "stage": "Delivered",
+        "is_read": false
+    },
+    {
+        "id": "notif_6adedaf82c4ae7.90845786",
+        "recipient_role": "Donor",
+        "recipient_id": 1,
+        "location": "Nairobi",
+        "title": "Consignment Collected \u2014 #4",
+        "message": "Your pledge of 12 of maize was successfully received at Nairobi Hub.",
+        "timestamp": "2026-10-26 07:45:44",
+        "stage": "Collected",
+        "is_read": false
+    },
+    {
+        "id": "notif_6ade3617ddb8c2.72638139",
+        "recipient_role": "Donor",
+        "recipient_id": 1,
+        "location": "Nairobi",
+        "title": "Pledge Confirmed \u2014 Consignment #4",
+        "message": "Your pledge of 12 kg of maize to Nairobi Hub is logged and awaiting pickup.",
+        "timestamp": "2026-10-25 20:02:15",
+        "stage": "Pending Pickup",
+        "is_read": false
+    },
+    {
+        "id": "notif_6ade3617d9ed57.54607499",
+        "recipient_role": "Area Admin",
+        "recipient_id": 0,
+        "location": "Nairobi",
+        "title": "New Aid Pledge \u2014 Consignment #4",
+        "message": "Mitesh bhudia pledged 12 kg of maize for Nairobi Hub.",
+        "timestamp": "2026-10-25 20:02:15",
+        "stage": "Pending Pickup",
+        "is_read": false
+    }
+]

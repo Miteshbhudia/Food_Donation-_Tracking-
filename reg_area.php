@@ -35,7 +35,42 @@ $fullname = $_SESSION['adminname'] ?? 'System Administrator';
             --gray-body: #64748b;
             --bg-light: #f8fafc;
             --card-border: #e2e8f0;
+            --bg-card: #ffffff;
         }
+
+        /* Dark Mode Synchronization */
+        body.dark-mode { 
+            --dark: #f8fafc; 
+            --bg-light: #0f172a; 
+            --card-border: #334155; 
+            --gray-body: #94a3b8; 
+            --bg-card: #1e293b; 
+            color: #f8fafc; 
+        }
+        body.dark-mode .navbar, 
+        body.dark-mode .register-card { background-color: var(--bg-card); border-color: var(--card-border); color: #f8fafc; }
+        body.dark-mode input.form-control, 
+        body.dark-mode select.form-select { background-color: #0f172a; color: #f8fafc; border-color: var(--card-border); }
+        body.dark-mode input.form-control:focus, 
+        body.dark-mode select.form-select:focus { background-color: #1e293b; color: #ffffff; }
+        body.dark-mode .form-label { color: #f8fafc; }
+        body.dark-mode .text-success { color: #4ade80 !important; }
+        body.dark-mode .btn-outline-secondary { background-color: transparent; border-color: var(--card-border); color: #94a3b8; }
+        body.dark-mode .btn-outline-secondary:hover { background-color: #334155; color: #f8fafc; }
+        body.dark-mode .text-muted { color: #94a3b8 !important; }
+        body.dark-mode input::placeholder { color: #64748b !important; }
+        body.dark-mode .dropdown-menu { background-color: var(--bg-card); border-color: var(--card-border); }
+        body.dark-mode .dropdown-item { color: #f8fafc; }
+        body.dark-mode .dropdown-item:hover { background-color: #334155; color: #ffffff; }
+
+        /* HIDE GOOGLE TRANSLATE UGLY ELEMENTS COMPLETELY */
+        body { top: 0 !important; }
+        .skiptranslate { display: none !important; }
+        #google_translate_element { display: none !important; }
+        .goog-te-banner-frame { display: none !important; }
+        .goog-tooltip { display: none !important; }
+        .goog-tooltip:hover { display: none !important; }
+        .goog-text-highlight { background-color: transparent !important; border: none !important; box-shadow: none !important; }
 
         body {
             font-family: 'Poppins', sans-serif;
@@ -44,11 +79,13 @@ $fullname = $_SESSION['adminname'] ?? 'System Administrator';
             min-height: 100vh;
             display: flex;
             flex-direction: column;
+            transition: background-color 0.3s, color 0.3s;
         }
 
         .navbar {
-            background-color: #ffffff;
+            background-color: var(--bg-card);
             border-bottom: 1px solid var(--card-border);
+            transition: background-color 0.3s;
         }
         .brand-title {
             font-size: 1.5rem;
@@ -70,11 +107,12 @@ $fullname = $_SESSION['adminname'] ?? 'System Administrator';
             max-width: 680px;
             width: 100%;
             margin: 0 auto;
-            background: #ffffff;
+            background: var(--bg-card);
             border: 1px solid var(--card-border);
             border-radius: 16px;
             box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
             padding: 2.75rem;
+            transition: background-color 0.3s;
         }
 
         .form-label {
@@ -120,15 +158,40 @@ $fullname = $_SESSION['adminname'] ?? 'System Administrator';
             margin-top: auto;
         }
     </style>
+    
+    <!-- Instant Dark Mode Applicator -->
+    <script>
+        if (localStorage.getItem('foodtrace_theme') === 'dark') {
+            document.documentElement.classList.add('dark-mode');
+            document.addEventListener("DOMContentLoaded", function() {
+                document.body.classList.add('dark-mode');
+            });
+        }
+    </script>
 </head>
 
 <body>
+    <!-- Hidden Google Translate Element -->
+    <div id="google_translate_element" style="display:none;"></div>
+
     <!-- Navigation -->
     <nav class="navbar navbar-expand-lg sticky-top">
         <div class="container">
             <a href="system_admin.php" class="brand-title">Food<span>Trace</span> <span class="badge bg-success-subtle text-success border border-success-subtle fs-6 fw-semibold ms-2">System Admin</span></a>
-            <div class="ms-auto d-flex align-items-center gap-3">
-                <a href="system_admin.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i> Dashboard</a>
+            <div class="ms-auto d-flex align-items-center gap-2">
+                
+                <!-- Native Language Dropdown -->
+                <div class="dropdown me-2">
+                    <button class="btn btn-outline-secondary btn-sm dropdown-toggle fw-semibold" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-translate me-1"></i> <span id="currentLangText">English</span>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end shadow border-0">
+                        <li><a class="dropdown-item small py-2" href="#" onclick="changeLanguage('en'); return false;">English (EN)</a></li>
+                        <li><a class="dropdown-item small py-2" href="#" onclick="changeLanguage('sw'); return false;">Kiswahili (SW)</a></li>
+                    </ul>
+                </div>
+
+                <a href="system_admin.php" class="btn btn-outline-secondary btn-sm me-2"><i class="bi bi-arrow-left me-1"></i> Dashboard</a>
                 <a href="logout.php" class="btn btn-outline-danger btn-sm"><i class="bi bi-box-arrow-right"></i></a>
             </div>
         </div>
@@ -209,6 +272,37 @@ $fullname = $_SESSION['adminname'] ?? 'System Administrator';
             <p class="mb-0 small text-white-50">&copy; Food Aid Traceability System. All Rights Reserved.</p>
         </div>
     </footer>
+
+    <!-- Native Swahili/English Translation Script -->
+    <script type="text/javascript" src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+    <script type="text/javascript">
+        function googleTranslateElementInit() {
+            new google.translate.TranslateElement({ pageLanguage: 'en', autoDisplay: false }, 'google_translate_element');
+        }
+
+        // Custom Toggle to bypass ugly Google UI
+        function changeLanguage(lang) {
+            const domain = window.location.hostname;
+            if (lang === 'sw') {
+                document.cookie = `googtrans=/en/sw; path=/`;
+                if(domain !== 'localhost' && domain !== '127.0.0.1') document.cookie = `googtrans=/en/sw; domain=${domain}; path=/`;
+            } else {
+                document.cookie = `googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/`;
+                if(domain !== 'localhost' && domain !== '127.0.0.1') document.cookie = `googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; domain=${domain}; path=/`;
+            }
+            window.location.reload();
+        }
+
+        // Highlight active language text on load
+        document.addEventListener("DOMContentLoaded", function() {
+            const langText = document.getElementById('currentLangText');
+            if (document.cookie.includes('googtrans=/en/sw')) {
+                if(langText) langText.innerText = 'Kiswahili';
+            } else {
+                if(langText) langText.innerText = 'English';
+            }
+        });
+    </script>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>

@@ -93,50 +93,20 @@
             border: 1px solid var(--card-border);
             border-radius: 16px;
             box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
-            padding: 1.75rem 2rem;
+            padding: 2rem;
         }
 
         .auth-header h3 {
-            font-size: 1.35rem;
+            font-size: 1.45rem;
             font-weight: 700;
-            margin-bottom: 0.2rem;
+            margin-bottom: 0.35rem;
             color: var(--dark);
         }
 
         .auth-header p {
-            font-size: 0.8rem;
+            font-size: 0.825rem;
             color: var(--gray-body);
-            margin-bottom: 1rem;
-        }
-
-        /* Modern Segmented Role Selector */
-        .role-switch-container {
-            display: flex;
-            background-color: #f1f5f9;
-            border-radius: 10px;
-            padding: 3px;
-            margin-bottom: 1.15rem;
-            gap: 2px;
-        }
-
-        .role-btn {
-            flex: 1;
-            border: none;
-            background: transparent;
-            padding: 0.45rem 0.25rem;
-            font-size: 0.775rem;
-            font-weight: 600;
-            color: var(--gray-body);
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            text-align: center;
-        }
-
-        .role-btn.active {
-            background-color: #ffffff;
-            color: var(--primary);
-            box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
+            margin-bottom: 1.5rem;
         }
 
         /* Form Labels & Links */
@@ -162,7 +132,7 @@
         .form-control {
             border: 1px solid var(--card-border);
             border-radius: 8px;
-            padding: 0.55rem 0.85rem;
+            padding: 0.6rem 0.85rem;
             font-size: 0.875rem;
             transition: border-color 0.2s, box-shadow 0.2s;
         }
@@ -194,11 +164,11 @@
             border: none;
             color: #ffffff;
             font-weight: 600;
-            font-size: 0.925rem;
-            padding: 0.65rem;
+            font-size: 0.95rem;
+            padding: 0.7rem;
             border-radius: 8px;
             transition: all 0.2s ease;
-            margin-top: 0.75rem;
+            margin-top: 1rem;
             width: 100%;
         }
 
@@ -209,8 +179,8 @@
         }
 
         .auth-footer {
-            margin-top: 0.85rem;
-            font-size: 0.775rem;
+            margin-top: 1.25rem;
+            font-size: 0.8rem;
             color: var(--gray-body);
             text-align: center;
         }
@@ -226,9 +196,9 @@
 
         .compact-alert {
             font-size: 0.775rem;
-            padding: 0.45rem 0.75rem;
+            padding: 0.55rem 0.85rem;
             border-radius: 8px;
-            margin-bottom: 0.85rem;
+            margin-bottom: 1.25rem;
         }
     </style>
 </head>
@@ -249,37 +219,21 @@
         <main class="auth-stage">
             <div class="auth-card">
                 
-                <!-- Dynamic URL Alert Toast -->
-                <div id="urlAlertContainer"></div>
+                <!-- Dynamic URL Alert Toast Container -->
+                <div id="alertContainer"></div>
 
                 <div class="auth-header text-center">
                     <h3>Welcome Back</h3>
-                    <p>Select your access role to continue</p>
-                </div>
-
-                <!-- Modern Role Switcher -->
-                <div class="role-switch-container">
-                    <button type="button" class="role-btn active" id="btnRoleDonor" onclick="selectRole('Donor')">
-                        <i class="bi bi-person me-1"></i>Donor
-                    </button>
-                    <button type="button" class="role-btn" id="btnRoleArea" onclick="selectRole('Area Admin')">
-                        <i class="bi bi-geo-alt me-1"></i>Area Admin
-                    </button>
-                    <button type="button" class="role-btn" id="btnRoleSys" onclick="selectRole('System Admin')">
-                        <i class="bi bi-shield-lock me-1"></i>System Admin
-                    </button>
+                    <p>Enter your credentials to access your portal</p>
                 </div>
 
                 <form method="POST" action="authentication.php" id="loginForm">
-                    <!-- Hidden Role Field to Pass Cleanly to PHP Backend -->
-                    <input type="hidden" name="role" id="roleInput" value="Donor">
-
-                    <div class="mb-2">
+                    <div class="mb-3">
                         <label class="form-label mb-1" for="loginEmail">Email Address</label>
                         <input type="email" class="form-control" id="loginEmail" name="email" placeholder="name@example.com" required autofocus>
                     </div>
 
-                    <div class="mb-2">
+                    <div class="mb-3">
                         <div class="d-flex justify-content-between align-items-center mb-1">
                             <label class="form-label" for="loginPassword">Password</label>
                             <a href="forgot_password.php" class="forgot-link" id="forgotPasswordLink">Forgot password?</a>
@@ -293,7 +247,7 @@
                     </div>
 
                     <button type="submit" class="btn btn-auth-submit" id="btnSubmit">
-                        Sign In as Donor
+                        Sign In
                     </button>
                 </form>
 
@@ -307,29 +261,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Role Switching Logic
-        function selectRole(roleName) {
-            document.getElementById('roleInput').value = roleName;
-
-            // Update segmented buttons
-            document.querySelectorAll('.role-btn').forEach(btn => btn.classList.remove('active'));
-            if (roleName === 'Donor') document.getElementById('btnRoleDonor').classList.add('active');
-            if (roleName === 'Area Admin') document.getElementById('btnRoleArea').classList.add('active');
-            if (roleName === 'System Admin') document.getElementById('btnRoleSys').classList.add('active');
-
-            // Update Submit Button Text
-            const submitBtn = document.getElementById('btnSubmit');
-            submitBtn.textContent = `Sign In as ${roleName}`;
-
-            // Adjust Footer Link Based on Role Architecture
-            const footer = document.getElementById('registrationFooter');
-            if (roleName === 'Donor') {
-                footer.innerHTML = `<span>Don't have an account?</span> <a href="reg_donor.php">Create Donor Account</a>`;
-            } else {
-                footer.innerHTML = `<span class="text-muted"><i class="bi bi-shield-check text-success me-1"></i>Staff accounts are provisioned via System Admin.</span>`;
-            }
-        }
-
         // Show/Hide Password Feature
         function togglePasswordVisibility() {
             const pwdInput = document.getElementById('loginPassword');
@@ -343,34 +274,48 @@
             }
         }
 
-        // Automated URL Query Banner Parser
+        // URL Alert Parameter Handler
         document.addEventListener('DOMContentLoaded', function() {
-            const params = new URLSearchParams(window.location.search);
-            const alertBox = document.getElementById('urlAlertContainer');
+            const urlParams = new URLSearchParams(window.location.search);
+            const errorParam = urlParams.get('error');
+            const logoutParam = urlParams.get('logout');
+            const signupParam = urlParams.get('signup');
 
-            if (params.get('logout') === 'success') {
-                alertBox.innerHTML = `
-                    <div class="alert alert-success compact-alert alert-dismissible fade show d-flex align-items-center" role="alert">
-                        <i class="bi bi-check-circle-fill me-2 fs-6"></i>
-                        <span>You have been safely logged out.</span>
-                        <button type="button" class="btn-close py-2" data-bs-dismiss="alert"></button>
-                    </div>`;
-            } else if (params.get('signup') === 'success') {
-                alertBox.innerHTML = `
-                    <div class="alert alert-success compact-alert alert-dismissible fade show d-flex align-items-center" role="alert">
-                        <i class="bi bi-check-circle-fill me-2 fs-6"></i>
-                        <span>Registration successful! Please log in.</span>
-                        <button type="button" class="btn-close py-2" data-bs-dismiss="alert"></button>
-                    </div>`;
-            } else if (params.get('error')) {
-                alertBox.innerHTML = `
-                    <div class="alert alert-danger compact-alert alert-dismissible fade show d-flex align-items-center" role="alert">
-                        <i class="bi bi-exclamation-triangle-fill me-2 fs-6"></i>
-                        <span>Invalid credentials. Please verify your details.</span>
-                        <button type="button" class="btn-close py-2" data-bs-dismiss="alert"></button>
-                    </div>`;
+            if (errorParam === 'concurrent') {
+                showAlert('Session terminated: This account was accessed from another tab or browser.', 'warning');
+            } else if (errorParam === 'timeout') {
+                showAlert('Session expired due to 15 minutes of inactivity. Please sign in again.', 'info');
+            } else if (errorParam === 'unauthorized') {
+                showAlert('Access denied. Please log in to continue.', 'danger');
+            } else if (errorParam === 'invalid') {
+                showAlert('Invalid credentials. Please verify your details.', 'danger');
+            } else if (errorParam === 'empty') {
+                showAlert('Please fill in both email and password.', 'warning');
+            } else if (logoutParam === 'success') {
+                showAlert('You have been logged out safely.', 'success');
+            } else if (signupParam === 'success') {
+                showAlert('Registration successful! Please log in.', 'success');
             }
         });
+
+        function showAlert(message, type) {
+            const alertContainer = document.getElementById('alertContainer') || document.querySelector('.auth-header');
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} compact-alert alert-dismissible fade show text-start d-flex align-items-center mb-3 pe-5`;
+            alertDiv.role = 'alert';
+            
+            let iconClass = 'bi-shield-exclamation';
+            if (type === 'success') iconClass = 'bi-check-circle-fill';
+            if (type === 'info') iconClass = 'bi-info-circle-fill';
+            if (type === 'danger') iconClass = 'bi-exclamation-triangle-fill';
+
+            alertDiv.innerHTML = `
+                <i class="bi ${iconClass} me-2 fs-6"></i>
+                <span>${message}</span>
+                <button type="button" class="btn-close py-2" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+            alertContainer.appendChild(alertDiv);
+        }
     </script>
 </body>
 
