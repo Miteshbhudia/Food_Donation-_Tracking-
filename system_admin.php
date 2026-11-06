@@ -231,7 +231,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'edit_donor' && isset($_GET['i
 }
 
 // ==========================================
-// 3. FETCH DASHBOARD STATISTICS
+// 3. FETCH DASHBOARD STATISTICS & CHART DATA
 // ==========================================
 $donor_res = $conn->query("SELECT COUNT(*) as total FROM `donors`");
 $total_donors = $donor_res->fetch_assoc()['total'] ?? 0;
@@ -247,6 +247,28 @@ $total_donations = $donation_res->fetch_assoc()['total'] ?? 0;
 
 $commodity_res = $conn->query("SELECT COUNT(*) as total FROM `commodity`");
 $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
+
+// Fetch Chart 1: Status Breakdown
+$status_counts = ['Pending Pickup' => 0, 'Collected' => 0, 'Delivered' => 0];
+$status_sql = $conn->query("SELECT Status, COUNT(*) as cnt FROM goods_donated GROUP BY Status");
+if ($status_sql) {
+    while($r = $status_sql->fetch_assoc()) {
+        if(isset($status_counts[$r['Status']])) {
+            $status_counts[$r['Status']] = (int)$r['cnt'];
+        }
+    }
+}
+
+// Fetch Chart 2: Top Commodities
+$comm_labels = [];
+$comm_data = [];
+$comm_sql = $conn->query("SELECT c.Commodity, COUNT(gd.Dontation_ID) as cnt FROM goods_donated gd JOIN commodity c ON gd.Commodity_ID = c.Commodity_ID GROUP BY c.Commodity ORDER BY cnt DESC LIMIT 5");
+if ($comm_sql) {
+    while($r = $comm_sql->fetch_assoc()) {
+        $comm_labels[] = $r['Commodity'];
+        $comm_data[] = (int)$r['cnt'];
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -264,6 +286,9 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Chart.js CDN for Visual Analytics -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
         :root {
@@ -292,11 +317,9 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
         body.dark-mode .modal-content, 
         body.dark-mode .dropdown-menu { background-color: var(--bg-card); border-color: var(--card-border); color: #f8fafc; }
         
-        /* Force light grey for muted text and placeholders in dark mode */
         body.dark-mode .text-muted { color: #94a3b8 !important; }
         body.dark-mode input::placeholder { color: #64748b !important; }
         
-        /* Fixed Table Dark Mode */
         body.dark-mode .table { --bs-table-bg: transparent; color: #f8fafc; border-color: var(--card-border); }
         body.dark-mode .table thead th { background-color: #0f172a !important; color: #94a3b8 !important; border-color: var(--card-border); }
         body.dark-mode .table tbody td { background-color: var(--bg-card) !important; color: #f8fafc !important; border-color: var(--card-border); }
@@ -311,11 +334,19 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
         body.dark-mode .dropdown-item { color: #f8fafc; }
         body.dark-mode .dropdown-item:hover { background-color: #334155; color: #ffffff; }
         
-        /* Nav Tabs in Dark Mode */
         body.dark-mode .nav-tabs { border-bottom-color: var(--card-border); }
         body.dark-mode .nav-tabs .nav-link { color: #94a3b8; }
         body.dark-mode .nav-tabs .nav-link:hover { color: #f8fafc; }
         body.dark-mode .nav-tabs .nav-link.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+        /* SLA Bottleneck Row Highlighting */
+        .row-bottleneck {
+            background-color: #fef2f2 !important;
+        }
+        body.dark-mode .row-bottleneck td {
+            background-color: #3f1218 !important;
+            color: #fca5a5 !important;
+        }
 
         /* HIDE GOOGLE TRANSLATE UGLY ELEMENTS COMPLETELY */
         body { top: 0 !important; }
@@ -326,9 +357,7 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
         .goog-tooltip:hover { display: none !important; }
         .goog-text-highlight { background-color: transparent !important; border: none !important; box-shadow: none !important; }
 
-        html {
-            scroll-behavior: smooth;
-        }
+        html { scroll-behavior: smooth; }
 
         body {
             font-family: 'Poppins', sans-serif;
@@ -415,9 +444,7 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
         }
 
         /* Tabs & Modern Controls */
-        .nav-tabs {
-            border-bottom: 2px solid var(--card-border);
-        }
+        .nav-tabs { border-bottom: 2px solid var(--card-border); }
         .nav-tabs .nav-link {
             font-weight: 600;
             color: var(--gray-body);
@@ -426,9 +453,7 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
             padding: 0.75rem 1.25rem;
             transition: all 0.2s ease;
         }
-        .nav-tabs .nav-link:hover {
-            color: var(--primary-hover);
-        }
+        .nav-tabs .nav-link:hover { color: var(--primary-hover); }
         .nav-tabs .nav-link.active {
             color: var(--primary);
             border-bottom: 2px solid var(--primary);
@@ -504,9 +529,7 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
             font-weight: normal;
         }
 
-        .search-input-box {
-            position: relative;
-        }
+        .search-input-box { position: relative; }
         .search-input-box i {
             position: absolute;
             left: 12px;
@@ -539,16 +562,14 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
         html.a11y-xlarge { font-size: 130% !important; }
     </style>
     
-    <!-- Instant Theme & Accessibility Applicator (Prevents white flash on load) -->
+    <!-- Instant Theme & Accessibility Applicator -->
     <script>
-        // Apply Dark Mode
         if (localStorage.getItem('foodtrace_theme') === 'dark') {
             document.documentElement.classList.add('dark-mode');
             document.addEventListener("DOMContentLoaded", function() {
                 document.body.classList.add('dark-mode');
             });
         }
-        // Apply Accessibility Text Size
         const savedTextSize = localStorage.getItem('foodtrace_text_size');
         if (savedTextSize) {
             document.documentElement.classList.add(savedTextSize);
@@ -567,7 +588,6 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
             <div class="ms-auto d-flex align-items-center gap-2">
                 <span class="small text-muted d-none d-md-inline me-2"><i class="bi bi-shield-lock-fill text-success me-1"></i><?php echo htmlspecialchars($fullname); ?></span>
                 
-                <!-- Settings Modal Trigger (Now handles preferences too) -->
                 <button class="btn btn-outline-secondary btn-sm me-2" data-bs-toggle="modal" data-bs-target="#profileModal" title="Account & Preferences">
                     <i class="bi bi-gear-fill"></i>
                 </button>
@@ -637,6 +657,28 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
                     <div class="stat-icon-wrap"><i class="bi bi-card-checklist"></i></div>
                     <h6>Total Needs Listed</h6>
                     <p class="stat-number" id="stat-needs"><?php echo htmlspecialchars($total_commodities); ?></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- VISUAL ANALYTICS SECTION -->
+        <div class="row g-4 mb-4">
+            <div class="col-lg-6">
+                <div class="section-card h-100 mb-0 d-flex flex-column">
+                    <h5 class="fw-bold mb-1">Global Delivery Milestone Ratio</h5>
+                    <p class="text-muted small mb-4">Breakdown of aid across the distribution lifecycle</p>
+                    <div class="flex-grow-1 d-flex align-items-center justify-content-center" style="position: relative; min-height: 250px;">
+                        <canvas id="statusChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="section-card h-100 mb-0 d-flex flex-column">
+                    <h5 class="fw-bold mb-1">Top Commodities Distributed</h5>
+                    <p class="text-muted small mb-4">Highest volume goods pledged system-wide</p>
+                    <div class="flex-grow-1 d-flex align-items-center justify-content-center" style="position: relative; min-height: 250px;">
+                        <canvas id="commodityChart"></canvas>
+                    </div>
                 </div>
             </div>
         </div>
@@ -717,7 +759,7 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
             </div>
         <?php endif; ?>
 
-        <!-- Section 1: User & Staff Governance (Separated Tabs with Deep Linking) -->
+        <!-- Section 1: User & Staff Governance -->
         <div class="section-card">
             <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
                 <div>
@@ -725,7 +767,6 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
                     <p class="text-muted small mb-0">Manage field depot officers, central administration accounts, and registered donor profiles</p>
                 </div>
                 <div class="d-flex align-items-center gap-2">
-                    <!-- Instant Live Filter Input -->
                     <div class="search-input-box">
                         <i class="bi bi-search"></i>
                         <input type="text" id="accountSearchInput" class="form-control form-control-sm" placeholder="Search accounts...">
@@ -734,7 +775,7 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
                 </div>
             </div>
 
-            <!-- Tabs Navigation with Dynamic Count Badges -->
+            <!-- Tabs Navigation -->
             <ul class="nav nav-tabs mb-3" id="userTabs" role="tablist">
                 <li class="nav-item" role="presentation">
                     <button class="nav-link <?php echo ($active_tab === 'area_admins') ? 'active' : ''; ?>" id="area-admins-tab" data-bs-toggle="tab" data-bs-target="#areaAdminsPane" type="button" role="tab" onclick="syncTabState('area_admins')">
@@ -898,14 +939,76 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
             </div>
         </div>
 
-        <!-- Section 2: Global Consignment & Audit Telemetry Table -->
+        <!-- Section 2: Global Consignment & Audit Telemetry Table with SLA Bottleneck Engine -->
         <div class="section-card">
-            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-2">
+            <?php
+            // Pre-calculate SLA Bottlenecks for Header Counter
+            $chk = $conn->query("SHOW COLUMNS FROM `goods_donated` LIKE 'Pledged_At'");
+            $has_times = ($chk && $chk->num_rows > 0);
+
+            $audit_sql = "
+                SELECT gd.Dontation_ID, d.Fullname AS DonorName, c.Commodity, gd.Quantity AS DonatedQty, 
+                       c.Quantity AS CommQtyStr, gd.Date_Donated, gd.Location, gd.Status
+                       " . ($has_times ? ", gd.Pledged_At, gd.Collected_At, gd.Delivered_At" : "") . "
+                FROM goods_donated gd
+                LEFT JOIN donors d ON gd.Donor_ID = d.Donor_ID
+                LEFT JOIN commodity c ON gd.Commodity_ID = c.Commodity_ID
+                ORDER BY gd.Dontation_ID DESC
+            ";
+            $audit_res = $conn->query($audit_sql);
+
+            $bottleneck_count = 0;
+            $rows_buffer = [];
+
+            if ($audit_res && $audit_res->num_rows > 0) {
+                while ($row_item = $audit_res->fetch_assoc()) {
+                    $status = $row_item['Status'] ?? 'Pending Pickup';
+                    $pledge_raw = !empty($row_item['Pledged_At']) ? $row_item['Pledged_At'] : $row_item['Date_Donated'];
+                    $collected_raw = !empty($row_item['Collected_At']) ? $row_item['Collected_At'] : null;
+
+                    $is_bottleneck = false;
+                    $stuck_label = '';
+
+                    // SLA Bottleneck Logic: Consignment in 'Collected' state (in depot) without final delivery
+                    if ($status === 'Collected') {
+                        $reference_time = !empty($collected_raw) ? $collected_raw : $pledge_raw;
+                        if (!empty($reference_time)) {
+                            $time_diff_sec = time() - strtotime($reference_time);
+                            $hours = $time_diff_sec / 3600;
+                            // Threshold set to > 24 hours
+                            if ($hours >= 24) {
+                                $is_bottleneck = true;
+                                $bottleneck_count++;
+                                $days = floor($hours / 24);
+                                $hrs = round($hours % 24);
+                                $stuck_label = ($days > 0 ? "{$days}d {$hrs}h" : round($hours, 1) . "h") . " in Depot";
+                            }
+                        }
+                    }
+
+                    $row_item['is_bottleneck'] = $is_bottleneck;
+                    $row_item['stuck_label']   = $stuck_label;
+                    $rows_buffer[] = $row_item;
+                }
+            }
+            ?>
+
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
                 <div>
-                    <h4 class="fw-bold mb-1">Global Consignment Audit & Traceability Feed</h4>
-                    <p class="text-muted small mb-0">System-wide monitoring of aid consignments across all sub-counties and distribution hubs</p>
+                    <h4 class="fw-bold mb-1">
+                        Global Consignment Audit & Traceability Feed
+                        <?php if ($bottleneck_count > 0): ?>
+                            <span class="badge bg-danger text-white fs-6 ms-2 align-middle shadow-sm animate-pulse" id="bottleneckBadge">
+                                <i class="bi bi-exclamation-triangle-fill me-1"></i><?php echo $bottleneck_count; ?> SLA Bottleneck(s)
+                            </span>
+                        <?php endif; ?>
+                    </h4>
+                    <p class="text-muted small mb-0">System-wide monitoring of aid consignments with automated SLA delay detection</p>
                 </div>
-                <button onclick="printAuditReport()" class="btn btn-print btn-sm"><i class="bi bi-printer me-1"></i> Export Audit Report</button>
+                <div class="d-flex gap-2">
+                    <button onclick="exportTableToCSV('FoodTrace_National_Audit_Report.csv')" class="btn btn-outline-success btn-sm"><i class="bi bi-file-earmark-spreadsheet me-1"></i> Export CSV</button>
+                    <button onclick="printAuditReport()" class="btn btn-print btn-sm"><i class="bi bi-printer me-1"></i> Print PDF</button>
+                </div>
             </div>
 
             <div class="table-responsive">
@@ -918,27 +1021,13 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
                             <th>Quantity Pledged</th>
                             <th>Pledge Date & Time</th>
                             <th>Target Hub</th>
-                            <th>Status & Timestamp</th>
+                            <th>Status & Milestone SLA</th>
                         </tr>
                     </thead>
                     <tbody id="auditTableBody">
                         <?php
-                        $chk = $conn->query("SHOW COLUMNS FROM `goods_donated` LIKE 'Pledged_At'");
-                        $has_times = ($chk && $chk->num_rows > 0);
-
-                        $audit_sql = "
-                            SELECT gd.Dontation_ID, d.Fullname AS DonorName, c.Commodity, gd.Quantity AS DonatedQty, 
-                                   c.Quantity AS CommQtyStr, gd.Date_Donated, gd.Location, gd.Status
-                                   " . ($has_times ? ", gd.Pledged_At, gd.Collected_At, gd.Delivered_At" : "") . "
-                            FROM goods_donated gd
-                            LEFT JOIN donors d ON gd.Donor_ID = d.Donor_ID
-                            LEFT JOIN commodity c ON gd.Commodity_ID = c.Commodity_ID
-                            ORDER BY gd.Dontation_ID DESC
-                        ";
-                        $audit_res = $conn->query($audit_sql);
-
-                        if ($audit_res && $audit_res->num_rows > 0) {
-                            while ($a_row = $audit_res->fetch_assoc()) {
+                        if (!empty($rows_buffer)) {
+                            foreach ($rows_buffer as $a_row) {
                                 $unit = '';
                                 if (preg_match('/^\d+(\.\d+)?\s*([a-zA-Z]+)?$/', $a_row['CommQtyStr'] ?? '', $matches)) {
                                     $unit = $matches[2] ?? '';
@@ -948,7 +1037,7 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
                                 $status = $a_row['Status'] ?? 'Pending Pickup';
                                 $badge_class = 'status-pending';
                                 $time_html = '';
-                                
+
                                 if ($status === "Pending Pickup" and !empty($pledge_raw)) {
                                     $time_html = "<span class='timestamp-small'><i class='bi bi-clock me-1'></i>" . date('M d, H:i:s', strtotime($pledge_raw)) . "</span>";
                                 } elseif ($status === 'Collected') {
@@ -963,7 +1052,9 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
                                     }
                                 }
 
-                                echo "<tr>";
+                                $tr_class = $a_row['is_bottleneck'] ? 'row-bottleneck' : '';
+
+                                echo "<tr class='{$tr_class}'>";
                                 echo "<td><strong>#" . htmlspecialchars($a_row['Dontation_ID']) . "</strong></td>";
                                 echo "<td>" . htmlspecialchars($a_row['DonorName'] ?? 'Anonymous') . "</td>";
                                 echo "<td class='fw-semibold'>" . htmlspecialchars($a_row['Commodity'] ?? 'Relief Item') . "</td>";
@@ -972,7 +1063,14 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
                                 echo "<td><i class='bi bi-geo-alt text-success me-1'></i>" . htmlspecialchars($a_row['Location']) . "</td>";
                                 echo "<td>
                                         <div class='d-flex flex-column align-items-start'>
-                                            <span class='status-badge {$badge_class}'>{$status}</span>
+                                            <div class='d-flex align-items-center gap-1 flex-wrap'>
+                                                <span class='status-badge {$badge_class}'>{$status}</span>";
+                                
+                                if ($a_row['is_bottleneck']) {
+                                    echo "<span class='badge bg-danger text-white border border-danger-subtle' style='font-size:0.75rem;' title='Food sitting in regional depot over 24 hours without dispatch'><i class='bi bi-exclamation-triangle-fill me-1'></i>SLA Bottleneck (" . htmlspecialchars($a_row['stuck_label']) . ")</span>";
+                                }
+
+                                echo "      </div>
                                             {$time_html}
                                         </div>
                                       </td>";
@@ -1068,7 +1166,6 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
             new google.translate.TranslateElement({ pageLanguage: 'en', autoDisplay: false }, 'google_translate_element');
         }
 
-        // Custom Toggle to bypass ugly Google UI
         function changeLanguage(lang) {
             const domain = window.location.hostname;
             if (lang === 'sw') {
@@ -1083,9 +1180,59 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
     </script>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Initialize Chart.js Analytics -->
     <script>
-        // Dark Mode Theme Logic
-        const themeToggleBtn = document.getElementById('themeToggle');
+        document.addEventListener("DOMContentLoaded", function() {
+            const ctxStatus = document.getElementById('statusChart').getContext('2d');
+            new Chart(ctxStatus, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Pending Pickup', 'Collected (Depot)', 'Delivered'],
+                    datasets: [{
+                        data: [
+                            <?php echo $status_counts['Pending Pickup'] ?? 0; ?>, 
+                            <?php echo $status_counts['Collected'] ?? 0; ?>, 
+                            <?php echo $status_counts['Delivered'] ?? 0; ?>
+                        ],
+                        backgroundColor: ['#f59e0b', '#0ea5e9', '#22c55e'],
+                        borderWidth: 2,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { font: { family: 'Poppins' } } } }
+                }
+            });
+
+            const ctxComm = document.getElementById('commodityChart').getContext('2d');
+            new Chart(ctxComm, {
+                type: 'bar',
+                data: {
+                    labels: <?php echo json_encode($comm_labels); ?>,
+                    datasets: [{
+                        label: 'Total Consignments',
+                        data: <?php echo json_encode($comm_data); ?>,
+                        backgroundColor: '#16a34a',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { stepSize: 1, font: { family: 'Poppins' } } },
+                        x: { ticks: { font: { family: 'Poppins' } } }
+                    }
+                }
+            });
+        });
+    </script>
+
+    <script>
         const themeIcon = document.getElementById('themeIcon');
         
         const savedTheme = localStorage.getItem('foodtrace_theme');
@@ -1101,12 +1248,7 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
             if (themeIcon) themeIcon.className = isDark ? 'bi bi-sun-fill me-2 text-warning' : 'bi bi-moon-stars-fill me-2';
         }
 
-        // ==========================================
-        // INITIALIZATION ON LOAD (Active States)
-        // ==========================================
         document.addEventListener('DOMContentLoaded', function() {
-            
-            // Highlight Active Language Button based on Cookie
             const langCookie = document.cookie.split('; ').find(row => row.startsWith('googtrans='));
             const btnEn = document.getElementById('btn-lang-en');
             const btnSw = document.getElementById('btn-lang-sw');
@@ -1117,7 +1259,6 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
                 if(btnEn) { btnEn.classList.remove('btn-outline-secondary'); btnEn.classList.add('btn-primary-custom'); }
             }
 
-            // Highlight Active Text Size Button based on LocalStorage
             const savedSize = localStorage.getItem('foodtrace_text_size') || 'default';
             updateTextSizeButtons(savedSize);
             
@@ -1140,9 +1281,6 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
             }
         });
 
-        // ==========================================
-        // ACCESSIBILITY: TEXT RESIZER LOGIC
-        // ==========================================
         function changeTextSize(sizeClass) {
             document.documentElement.classList.remove('a11y-large', 'a11y-xlarge');
             if (sizeClass !== 'default') {
@@ -1167,7 +1305,6 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
             }
         }
 
-        // Update URL state without page reload when user changes tabs
         function syncTabState(tabName) {
             const url = new URL(window.location.href);
             url.searchParams.set('tab', tabName);
@@ -1176,9 +1313,7 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
             window.history.replaceState({}, '', url.toString());
         }
 
-        // ==========================================
-        // SILENT AJAX POLLING - LIVE DATA SYNC
-        // ==========================================
+        // Silent AJAX Polling for Live Telemetry & Audit updates
         setInterval(() => {
             fetch(window.location.href)
                 .then(res => res.text())
@@ -1199,6 +1334,12 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
                         const newAuditBody = doc.getElementById('auditTableBody'); const oldAuditBody = document.getElementById('auditTableBody');
                         if (newAuditBody && oldAuditBody) oldAuditBody.innerHTML = newAuditBody.innerHTML;
                         
+                        const newBottleneckBadge = doc.getElementById('bottleneckBadge');
+                        const oldBottleneckBadge = document.getElementById('bottleneckBadge');
+                        if (newBottleneckBadge && oldBottleneckBadge) {
+                            oldBottleneckBadge.outerHTML = newBottleneckBadge.outerHTML;
+                        }
+
                         const tablesToUpdate = ['areaAdminTable', 'sysAdminTable', 'donorTable'];
                         tablesToUpdate.forEach(tableId => {
                             const newTable = doc.getElementById(tableId); const oldTable = document.getElementById(tableId);
@@ -1207,12 +1348,35 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
                     }
                 })
                 .catch(err => console.log('Live sync paused'));
-        }, 4000);
+        }, 5000);
+
+        function exportTableToCSV(filename) {
+            const table = document.getElementById("auditTable");
+            let csv = [];
+            for (let i = 0; i < table.rows.length; i++) {
+                let row = [];
+                let cols = table.rows[i].querySelectorAll("td, th");
+                for (let j = 0; j < cols.length; j++) {
+                    let data = cols[j].innerText.replace(/(\r\n|\n|\r)/gm, " ").trim();
+                    data = data.replace(/"/g, '""');
+                    row.push('"' + data + '"');
+                }
+                csv.push(row.join(","));
+            }
+            const csvFile = new Blob([csv.join("\n")], { type: "text/csv" });
+            const downloadLink = document.createElement("a");
+            downloadLink.download = filename;
+            downloadLink.href = window.URL.createObjectURL(csvFile);
+            downloadLink.style.display = "none";
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+        }
 
         function printAuditReport() {
             const tableHtml = document.getElementById("auditTable").outerHTML;
             const printWin = window.open("", "", "height=700,width=950");
-            printWin.document.write(`<html><head><title>Food Aid Traceability - National Audit Telemetry Report</title><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"><style>body { font-family: sans-serif; padding: 30px; } h2, p { text-align: center; } table { width: 100%; border-collapse: collapse; margin-top: 25px; font-size: 13px; } th, td { border: 1px solid #cbd5e1; padding: 10px; text-align: left; } th { background-color: #16a34a; color: white; }</style></head><body><h2>Food Aid Traceability System</h2><p class="text-muted">Consolidated Consignment Audit & Milestone Log &bull; Generated on: ${new Date().toLocaleString()}</p>${tableHtml}</body></html>`);
+            printWin.document.write(`<html><head><title>Food Aid Traceability - National Audit Telemetry Report</title><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"><style>body { font-family: sans-serif; padding: 30px; } h2, p { text-align: center; } table { width: 100%; border-collapse: collapse; margin-top: 25px; font-size: 13px; } th, td { border: 1px solid #cbd5e1; padding: 10px; text-align: left; } th { background-color: #16a34a; color: white; } .row-bottleneck { background-color: #fef2f2 !important; }</style></head><body><h2>Food Aid Traceability System</h2><p class="text-muted">Consolidated Consignment Audit & Milestone Log &bull; Generated on: ${new Date().toLocaleString()}</p>${tableHtml}</body></html>`);
             printWin.document.close(); printWin.print(); printWin.close();
         }
     </script>

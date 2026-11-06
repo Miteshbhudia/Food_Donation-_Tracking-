@@ -1,12 +1,7 @@
 {
     "admin@fooddistribution.com": {
-        "token": "a904ccbabf8769a716d62ee9b14c8973f46e35b5aa251411d68a97f964bfaecd",
+        "token": "1cba50c0d6179657c2872575f749e7d47fd9d2b747395c2e5dd10a7d3a8907ec",
         "role": "System Admin",
-        "last_seen": 1793946617
-    },
-    "miteshbhudiamd@gmail.com": {
-        "token": "f1994c056aa923319adc57123534bc0f8cb57489ebc9099a7573d030b8f4bb29",
-        "role": "Donor",
-        "last_seen": 1793947466
+        "last_seen": 1793976819
     }
 }
