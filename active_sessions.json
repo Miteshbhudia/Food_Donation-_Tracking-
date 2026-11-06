@@ -1,12 +1,7 @@
 {
-    "miteshbhudiamd@gmail.com": {
-        "token": "9f2dc06633dc54e873181908f9442c973e04a005e20acc5be58efd5e9213b5a2",
-        "role": "Donor",
-        "last_seen": 1793870330
-    },
     "areaadmin@fooddistribution.com": {
-        "token": "748b983b0b38029a26cac9c41f8687202729a53b0b2c19c2685b770fc13bc2d6",
+        "token": "c35d9b13c3ba1d96c2fd558b4c39444eb52fa14e24176d24139b3988d82cb897",
         "role": "Area Admin",
-        "last_seen": 1793870376
+        "last_seen": 1793940954
     }
 }

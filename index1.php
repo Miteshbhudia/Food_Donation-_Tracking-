@@ -522,15 +522,25 @@ $stat_delivered = $conn->query("SELECT COUNT(*) AS total FROM `goods_donated` WH
             padding: 3rem 0 1.5rem 0;
             margin-top: 5rem;
         }
+
+        /* ACCESSIBILITY: Low-Vision Text Resizer Classes */
+        html.a11y-large { font-size: 115% !important; }
+        html.a11y-xlarge { font-size: 130% !important; }
     </style>
     
-    <!-- Instant Dark Mode Applicator (Prevents white flash on load) -->
+    <!-- Instant Theme & Accessibility Applicator (Prevents white flash on load) -->
     <script>
+        // Apply Dark Mode
         if (localStorage.getItem('foodtrace_theme') === 'dark') {
             document.documentElement.classList.add('dark-mode');
             document.addEventListener("DOMContentLoaded", function() {
                 document.body.classList.add('dark-mode');
             });
+        }
+        // Apply Accessibility Text Size
+        const savedTextSize = localStorage.getItem('foodtrace_text_size');
+        if (savedTextSize) {
+            document.documentElement.classList.add(savedTextSize);
         }
     </script>
 </head>
@@ -539,31 +549,15 @@ $stat_delivered = $conn->query("SELECT COUNT(*) AS total FROM `goods_donated` WH
     <!-- Hidden Google Translate Element -->
     <div id="google_translate_element" style="display:none;"></div>
 
-    <!-- Navbar -->
+    <!-- Cleaned Up Navbar -->
     <nav class="navbar navbar-expand-lg sticky-top">
         <div class="container">
             <a href="index1.php" class="brand-title">Food<span>Trace</span> <span class="badge bg-success-subtle text-success border border-success-subtle fs-6 fw-semibold ms-2">Area Administrator</span></a>
             <div class="ms-auto d-flex align-items-center gap-2">
                 <span class="small text-muted d-none d-md-inline me-2"><i class="bi bi-geo-alt-fill text-success me-1"></i><?php echo htmlspecialchars($admin_location); ?> Regional Hub</span>
                 
-                <!-- Native Language Dropdown -->
-                <div class="dropdown me-2">
-                    <button class="btn btn-outline-secondary btn-sm dropdown-toggle fw-semibold" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        <i class="bi bi-translate me-1"></i> <span id="currentLangText">English</span>
-                    </button>
-                    <ul class="dropdown-menu dropdown-menu-end shadow border-0">
-                        <li><a class="dropdown-item small py-2" href="#" onclick="changeLanguage('en'); return false;">English (EN)</a></li>
-                        <li><a class="dropdown-item small py-2" href="#" onclick="changeLanguage('sw'); return false;">Kiswahili (SW)</a></li>
-                    </ul>
-                </div>
-
-                <!-- Dark Mode Toggle -->
-                <button id="themeToggle" class="btn btn-outline-secondary btn-sm rounded-circle me-1" onclick="toggleTheme()" title="Toggle Dark/Light Mode">
-                    <i class="bi bi-moon-stars-fill" id="themeIcon"></i>
-                </button>
-
-                <!-- Profile Settings -->
-                <button class="btn btn-outline-secondary btn-sm me-2" data-bs-toggle="modal" data-bs-target="#profileModal" title="Account Settings">
+                <!-- Settings Modal Trigger (Now handles preferences too) -->
+                <button class="btn btn-outline-secondary btn-sm me-2" data-bs-toggle="modal" data-bs-target="#profileModal" title="Account & Preferences">
                     <i class="bi bi-gear-fill"></i>
                 </button>
 
@@ -857,12 +851,12 @@ $stat_delivered = $conn->query("SELECT COUNT(*) AS total FROM `goods_donated` WH
 
     </div>
 
-    <!-- Self-Service Profile Modal -->
+    <!-- Account & Preferences Modal -->
     <div class="modal fade" id="profileModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow-lg">
                 <div class="modal-header bg-dark text-white">
-                    <h5 class="modal-title fw-bold"><i class="bi bi-person-gear text-success me-2"></i>Account Settings</h5>
+                    <h5 class="modal-title fw-bold"><i class="bi bi-gear-fill text-success me-2"></i>Account & Preferences</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <form method="POST" action="index1.php">
@@ -880,11 +874,37 @@ $stat_delivered = $conn->query("SELECT COUNT(*) AS total FROM `goods_donated` WH
                             <label class="form-label small fw-semibold">Assigned Sub-County / Hub Location</label>
                             <input type="text" name="location" class="form-control" value="<?php echo htmlspecialchars($admin_location); ?>" required>
                         </div>
-                        <hr class="my-4 border-secondary">
-                        <h6 class="fw-bold mb-3">Security</h6>
                         <div class="mb-2">
                             <label class="form-label small fw-semibold">Change Password <span class="text-muted fw-normal">(Leave blank to keep current)</span></label>
                             <input type="password" name="new_password" class="form-control" placeholder="Enter new secure password">
+                        </div>
+
+                        <!-- Display & Accessibility Section -->
+                        <hr class="my-4 border-secondary">
+                        <h6 class="fw-bold mb-3"><i class="bi bi-display me-2 text-primary"></i>Display & Accessibility</h6>
+                        
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">App Theme</label><br>
+                                <button type="button" class="btn btn-outline-secondary btn-sm w-100 text-start" onclick="toggleTheme()">
+                                    <i class="bi bi-moon-stars-fill me-2" id="themeIcon"></i> Toggle Dark/Light
+                                </button>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Language</label><br>
+                                <div class="btn-group w-100" role="group">
+                                    <button type="button" id="btn-lang-en" class="btn btn-outline-secondary btn-sm lang-btn" onclick="changeLanguage('en')">English</button>
+                                    <button type="button" id="btn-lang-sw" class="btn btn-outline-secondary btn-sm lang-btn" onclick="changeLanguage('sw')">Kiswahili</button>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small fw-semibold">Text Size</label><br>
+                                <div class="btn-group w-100" role="group" aria-label="Text Size Accessibility controls">
+                                    <button type="button" id="btn-text-default" class="btn btn-outline-secondary btn-sm fw-bold text-size-btn" onclick="changeTextSize('default')">A (Default)</button>
+                                    <button type="button" id="btn-text-a11y-large" class="btn btn-outline-secondary btn-sm fw-bold text-size-btn" onclick="changeTextSize('a11y-large')">A+ (Large)</button>
+                                    <button type="button" id="btn-text-a11y-xlarge" class="btn btn-outline-secondary btn-sm fw-bold text-size-btn" onclick="changeTextSize('a11y-xlarge')">A++ (Extra Large)</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div class="modal-footer border-0">
@@ -965,41 +985,105 @@ $stat_delivered = $conn->query("SELECT COUNT(*) AS total FROM `goods_donated` WH
             }
             window.location.reload();
         }
-
-        // Highlight active language text on load
-        document.addEventListener("DOMContentLoaded", function() {
-            const langText = document.getElementById('currentLangText');
-            if (document.cookie.includes('googtrans=/en/sw')) {
-                if(langText) langText.innerText = 'Kiswahili';
-            } else {
-                if(langText) langText.innerText = 'English';
-            }
-        });
     </script>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Dark Mode Theme Logic
-        const themeToggleBtn = document.getElementById('themeToggle');
+        const savedTheme = localStorage.getItem('foodtrace_theme');
         const themeIcon = document.getElementById('themeIcon');
         
-        const savedTheme = localStorage.getItem('foodtrace_theme');
         if (savedTheme === 'dark') {
             document.body.classList.add('dark-mode');
-            themeIcon.className = 'bi bi-sun-fill text-warning';
+            if(themeIcon) themeIcon.className = 'bi bi-sun-fill me-2 text-warning';
         }
 
         function toggleTheme() {
             document.body.classList.toggle('dark-mode');
             const isDark = document.body.classList.contains('dark-mode');
             localStorage.setItem('foodtrace_theme', isDark ? 'dark' : 'light');
-            themeIcon.className = isDark ? 'bi bi-sun-fill text-warning' : 'bi bi-moon-stars-fill';
+            
+            const icon = document.getElementById('themeIcon');
+            if(icon) {
+                icon.className = isDark ? 'bi bi-sun-fill me-2 text-warning' : 'bi bi-moon-stars-fill me-2';
+            }
         }
 
         // Dismiss notification badge on click
         function markNotificationsRead() {
             const badge = document.getElementById('notifBadgeCount');
             if (badge) badge.style.display = 'none';
+        }
+
+        // ==========================================
+        // INITIALIZATION ON LOAD (Active States & Filters)
+        // ==========================================
+        document.addEventListener('DOMContentLoaded', function() {
+            
+            // Highlight Active Language Button based on Cookie
+            const langCookie = document.cookie.split('; ').find(row => row.startsWith('googtrans='));
+            const btnEn = document.getElementById('btn-lang-en');
+            const btnSw = document.getElementById('btn-lang-sw');
+            
+            if (langCookie && langCookie.includes('/en/sw')) {
+                if(btnSw) { btnSw.classList.remove('btn-outline-secondary'); btnSw.classList.add('btn-primary-custom'); }
+            } else {
+                if(btnEn) { btnEn.classList.remove('btn-outline-secondary'); btnEn.classList.add('btn-primary-custom'); }
+            }
+
+            // Highlight Active Text Size Button based on LocalStorage
+            const savedSize = localStorage.getItem('foodtrace_text_size') || 'default';
+            updateTextSizeButtons(savedSize);
+
+            // Instant Live Filters
+            const commSearch = document.getElementById('commSearchInput');
+            if (commSearch) {
+                commSearch.addEventListener('input', function() {
+                    const filter = this.value.toLowerCase().trim();
+                    const rows = document.querySelectorAll('#commTableBody tr');
+                    rows.forEach(r => {
+                        r.style.display = r.textContent.toLowerCase().includes(filter) ? '' : 'none';
+                    });
+                });
+            }
+
+            const consignSearch = document.getElementById('consignSearchInput');
+            if (consignSearch) {
+                consignSearch.addEventListener('input', function() {
+                    const filter = this.value.toLowerCase().trim();
+                    const rows = document.querySelectorAll('#consignTableBody tr');
+                    rows.forEach(r => {
+                        r.style.display = r.textContent.toLowerCase().includes(filter) ? '' : 'none';
+                    });
+                });
+            }
+        });
+
+        // ==========================================
+        // ACCESSIBILITY: TEXT RESIZER LOGIC
+        // ==========================================
+        function changeTextSize(sizeClass) {
+            document.documentElement.classList.remove('a11y-large', 'a11y-xlarge');
+            if (sizeClass !== 'default') {
+                document.documentElement.classList.add(sizeClass);
+                localStorage.setItem('foodtrace_text_size', sizeClass);
+            } else {
+                localStorage.removeItem('foodtrace_text_size');
+            }
+            updateTextSizeButtons(sizeClass);
+        }
+
+        function updateTextSizeButtons(activeSize) {
+            const btns = document.querySelectorAll('.text-size-btn');
+            btns.forEach(btn => {
+                btn.classList.remove('btn-primary-custom');
+                btn.classList.add('btn-outline-secondary');
+            });
+            const activeBtn = document.getElementById('btn-text-' + activeSize);
+            if (activeBtn) {
+                activeBtn.classList.remove('btn-outline-secondary');
+                activeBtn.classList.add('btn-primary-custom');
+            }
         }
 
         // ==========================================
@@ -1023,29 +1107,32 @@ $stat_delivered = $conn->query("SELECT COUNT(*) AS total FROM `goods_donated` WH
                         }
                     });
 
-                    // 2. Update Commodity Table (Only if user isn't typing in search or delete box)
+                    // 2. Update Commodity Table
                     if (document.activeElement.id !== 'commSearchInput' && document.activeElement.id !== 'deleteCommInput') {
                         document.getElementById('commTableBody').innerHTML = doc.getElementById('commTableBody').innerHTML;
                     }
 
-                    // 3. Update Consignments Table (Only if user isn't clicking a dropdown or searching)
+                    // 3. Update Consignments Table
                     if (!document.getElementById('consignTableBody').contains(document.activeElement) && document.activeElement.id !== 'consignSearchInput') {
                         document.getElementById('consignTableBody').innerHTML = doc.getElementById('consignTableBody').innerHTML;
                         
                         // Re-apply active filter chip after replacing HTML
-                        const activeFilter = document.querySelector('.filter-chip.active').textContent.trim();
-                        if (activeFilter !== 'All') {
-                            let filterVal = 'Pending Pickup';
-                            if(activeFilter.includes('Collected')) filterVal = 'Collected';
-                            if(activeFilter === 'Delivered') filterVal = 'Delivered';
-                            
-                            document.querySelectorAll('#consignTableBody tr').forEach(row => {
-                                row.style.display = (row.getAttribute('data-status') === filterVal) ? '' : 'none';
-                            });
+                        const activeFilterElement = document.querySelector('.filter-chip.active');
+                        if (activeFilterElement) {
+                            const activeFilter = activeFilterElement.textContent.trim();
+                            if (activeFilter !== 'All') {
+                                let filterVal = 'Pending Pickup';
+                                if(activeFilter.includes('Collected')) filterVal = 'Collected';
+                                if(activeFilter === 'Delivered') filterVal = 'Delivered';
+                                
+                                document.querySelectorAll('#consignTableBody tr').forEach(row => {
+                                    row.style.display = (row.getAttribute('data-status') === filterVal) ? '' : 'none';
+                                });
+                            }
                         }
                     }
 
-                    // 4. Update Notification Dropdown & Bell Badge
+                    // 4. Update Notification Dropdown
                     const newDropdown = doc.querySelector('.dropdown-menu-notif');
                     if (newDropdown) {
                         document.querySelector('.dropdown-menu-notif').innerHTML = newDropdown.innerHTML;
@@ -1064,8 +1151,7 @@ $stat_delivered = $conn->query("SELECT COUNT(*) AS total FROM `goods_donated` WH
                     }
                 })
                 .catch(err => console.log('Live sync paused'));
-        }, 4000); // Scans for database updates every 4 seconds
-
+        }, 4000); 
 
         // Synthesizer Audio + Native Haptic Vibration Feedback
         function triggerScanFeedback(isSuccess) {
@@ -1102,31 +1188,6 @@ $stat_delivered = $conn->query("SELECT COUNT(*) AS total FROM `goods_donated` WH
                 }
             }
         }
-
-        // Live Table Filters
-        document.addEventListener('DOMContentLoaded', function() {
-            const commSearch = document.getElementById('commSearchInput');
-            if (commSearch) {
-                commSearch.addEventListener('input', function() {
-                    const filter = this.value.toLowerCase().trim();
-                    const rows = document.querySelectorAll('#commTableBody tr');
-                    rows.forEach(r => {
-                        r.style.display = r.textContent.toLowerCase().includes(filter) ? '' : 'none';
-                    });
-                });
-            }
-
-            const consignSearch = document.getElementById('consignSearchInput');
-            if (consignSearch) {
-                consignSearch.addEventListener('input', function() {
-                    const filter = this.value.toLowerCase().trim();
-                    const rows = document.querySelectorAll('#consignTableBody tr');
-                    rows.forEach(r => {
-                        r.style.display = r.textContent.toLowerCase().includes(filter) ? '' : 'none';
-                    });
-                });
-            }
-        });
 
         // Filter chips for Consignment Table
         function filterConsignments(status, btnElement) {

@@ -64,7 +64,7 @@ if (file_exists($registryFile)) {
     }
 }
 
-// FETCH DONOR DATA (Added Phone_Number for Profile Modal)
+// FETCH DONOR DATA
 $stmt = $conn->prepare("SELECT Fullname, Donor_ID, Phone_Number FROM `donors` WHERE `Email_Address` = ?");
 $stmt->bind_param("s", $email);
 $stmt->execute();
@@ -128,7 +128,6 @@ $unread_count = 0;
 if (file_exists($notifFile)) {
     $all_notifs = json_decode(file_get_contents($notifFile), true) ?: [];
     foreach ($all_notifs as $n) {
-        // Donors only see notifications bound to their specific ID
         if (($n['recipient_role'] ?? '') === 'Donor' and intval($n['recipient_id'] ?? 0) === intval($donor_id)) {
             $my_notifications[] = $n;
             if (empty($n['is_read'])) $unread_count++;
@@ -197,7 +196,6 @@ $donor_active_pledges = max(0, $donor_total_pledges - $donor_delivered_pledges);
         body.dark-mode .modal-content, 
         body.dark-mode .dropdown-menu { background-color: var(--bg-card); border-color: var(--card-border); color: #f8fafc; }
         
-        /* Fixed Table Dark Mode */
         body.dark-mode .table { --bs-table-bg: transparent; color: #f8fafc; border-color: var(--card-border); }
         body.dark-mode .table thead th { background-color: #0f172a !important; color: #94a3b8 !important; border-color: var(--card-border); }
         body.dark-mode .table tbody td { background-color: var(--bg-card) !important; color: #f8fafc !important; border-color: var(--card-border); }
@@ -495,15 +493,25 @@ $donor_active_pledges = max(0, $donor_total_pledges - $donor_delivered_pledges);
             padding: 3rem 0 1.5rem 0;
             margin-top: 5rem;
         }
+
+        /* ACCESSIBILITY: Low-Vision Text Resizer Classes */
+        html.a11y-large { font-size: 115% !important; }
+        html.a11y-xlarge { font-size: 130% !important; }
     </style>
     
-    <!-- Instant Dark Mode Applicator (Prevents white flash on load) -->
+    <!-- Instant Theme & Accessibility Applicator (Prevents white flash on load) -->
     <script>
+        // Apply Dark Mode
         if (localStorage.getItem('foodtrace_theme') === 'dark') {
             document.documentElement.classList.add('dark-mode');
             document.addEventListener("DOMContentLoaded", function() {
                 document.body.classList.add('dark-mode');
             });
+        }
+        // Apply Accessibility Text Size
+        const savedTextSize = localStorage.getItem('foodtrace_text_size');
+        if (savedTextSize) {
+            document.documentElement.classList.add(savedTextSize);
         }
     </script>
 </head>
@@ -512,31 +520,15 @@ $donor_active_pledges = max(0, $donor_total_pledges - $donor_delivered_pledges);
     <!-- Hidden Google Translate Element -->
     <div id="google_translate_element" style="display:none;"></div>
 
-    <!-- Navbar -->
+    <!-- Cleaned Up Navbar -->
     <nav class="navbar navbar-expand-lg sticky-top">
         <div class="container">
             <a href="index2.php" class="brand-title">Food<span>Trace</span> <span class="badge bg-success-subtle text-success border border-success-subtle fs-6 fw-semibold ms-2">Donor</span></a>
             <div class="ms-auto d-flex align-items-center gap-2">
                 <span class="small text-muted d-none d-md-inline me-2"><i class="bi bi-person-circle text-success me-1"></i><?php echo htmlspecialchars($donor_fullname); ?></span>
                 
-                <!-- Native Language Dropdown -->
-                <div class="dropdown me-2">
-                    <button class="btn btn-outline-secondary btn-sm dropdown-toggle fw-semibold" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        <i class="bi bi-translate me-1"></i> <span id="currentLangText">English</span>
-                    </button>
-                    <ul class="dropdown-menu dropdown-menu-end shadow border-0">
-                        <li><a class="dropdown-item small py-2" href="#" onclick="changeLanguage('en'); return false;">English (EN)</a></li>
-                        <li><a class="dropdown-item small py-2" href="#" onclick="changeLanguage('sw'); return false;">Kiswahili (SW)</a></li>
-                    </ul>
-                </div>
-
-                <!-- Dark Mode Toggle -->
-                <button id="themeToggle" class="btn btn-outline-secondary btn-sm rounded-circle me-1" onclick="toggleTheme()" title="Toggle Dark/Light Mode">
-                    <i class="bi bi-moon-stars-fill" id="themeIcon"></i>
-                </button>
-
-                <!-- Profile Settings -->
-                <button class="btn btn-outline-secondary btn-sm me-2" data-bs-toggle="modal" data-bs-target="#profileModal" title="Account Settings">
+                <!-- Settings Modal Trigger (Now handles preferences too) -->
+                <button class="btn btn-outline-secondary btn-sm me-2" data-bs-toggle="modal" data-bs-target="#profileModal" title="Account & Preferences">
                     <i class="bi bi-gear-fill"></i>
                 </button>
 
@@ -548,7 +540,7 @@ $donor_active_pledges = max(0, $donor_total_pledges - $donor_delivered_pledges);
                             <span class="notif-badge" id="notifBadgeCount"><?php echo $unread_count; ?></span>
                         <?php endif; ?>
                     </div>
-                    <ul class="dropdown-menu dropdown-menu-end dropdown-menu-notif">
+                    <ul class="dropdown-menu dropdown-menu-end dropdown-menu-notif" aria-live="polite" aria-atomic="true">
                         <li class="p-3 border-bottom d-flex justify-content-between align-items-center" style="background-color: var(--bg-light);">
                             <h6 class="mb-0 fw-bold">Live Delivery Notifications</h6>
                             <span class="badge bg-success-subtle text-success border border-success-subtle"><?php echo count($my_notifications); ?></span>
@@ -806,12 +798,12 @@ $donor_active_pledges = max(0, $donor_total_pledges - $donor_delivered_pledges);
 
     </div>
 
-    <!-- Self-Service Profile Modal -->
+    <!-- Account & Preferences Modal -->
     <div class="modal fade" id="profileModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow-lg">
                 <div class="modal-header bg-dark text-white">
-                    <h5 class="modal-title fw-bold"><i class="bi bi-person-gear text-success me-2"></i>Account Settings</h5>
+                    <h5 class="modal-title fw-bold"><i class="bi bi-gear-fill text-success me-2"></i>Account & Preferences</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <form method="POST" action="index2.php">
@@ -829,11 +821,37 @@ $donor_active_pledges = max(0, $donor_total_pledges - $donor_delivered_pledges);
                             <label class="form-label small fw-semibold">Phone Number</label>
                             <input type="text" name="phone" class="form-control" value="<?php echo htmlspecialchars($donor_phone); ?>">
                         </div>
-                        <hr class="my-4 border-secondary">
-                        <h6 class="fw-bold mb-3">Security</h6>
                         <div class="mb-2">
                             <label class="form-label small fw-semibold">Change Password <span class="text-muted fw-normal">(Leave blank to keep current)</span></label>
                             <input type="password" name="new_password" class="form-control" placeholder="Enter new secure password">
+                        </div>
+
+                        <!-- Display & Accessibility Section -->
+                        <hr class="my-4 border-secondary">
+                        <h6 class="fw-bold mb-3"><i class="bi bi-display me-2 text-primary"></i>Display & Accessibility</h6>
+                        
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">App Theme</label><br>
+                                <button type="button" class="btn btn-outline-secondary btn-sm w-100 text-start" onclick="toggleTheme()">
+                                    <i class="bi bi-moon-stars-fill me-2" id="themeIcon"></i> Toggle Dark/Light
+                                </button>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Language</label><br>
+                                <div class="btn-group w-100" role="group">
+                                    <button type="button" id="btn-lang-en" class="btn btn-outline-secondary btn-sm lang-btn" onclick="changeLanguage('en')">English</button>
+                                    <button type="button" id="btn-lang-sw" class="btn btn-outline-secondary btn-sm lang-btn" onclick="changeLanguage('sw')">Kiswahili</button>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small fw-semibold">Text Size</label><br>
+                                <div class="btn-group w-100" role="group" aria-label="Text Size Accessibility controls">
+                                    <button type="button" id="btn-text-default" class="btn btn-outline-secondary btn-sm fw-bold text-size-btn" onclick="changeTextSize('default')">A (Default)</button>
+                                    <button type="button" id="btn-text-a11y-large" class="btn btn-outline-secondary btn-sm fw-bold text-size-btn" onclick="changeTextSize('a11y-large')">A+ (Large)</button>
+                                    <button type="button" id="btn-text-a11y-xlarge" class="btn btn-outline-secondary btn-sm fw-bold text-size-btn" onclick="changeTextSize('a11y-xlarge')">A++ (Extra Large)</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div class="modal-footer border-0">
@@ -974,35 +992,28 @@ $donor_active_pledges = max(0, $donor_total_pledges - $donor_delivered_pledges);
             }
             window.location.reload();
         }
-
-        // Highlight active language text on load
-        document.addEventListener("DOMContentLoaded", function() {
-            const langText = document.getElementById('currentLangText');
-            if (document.cookie.includes('googtrans=/en/sw')) {
-                if(langText) langText.innerText = 'Kiswahili';
-            } else {
-                if(langText) langText.innerText = 'English';
-            }
-        });
     </script>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Dark Mode Theme Logic
-        const themeToggleBtn = document.getElementById('themeToggle');
+        const savedTheme = localStorage.getItem('foodtrace_theme');
         const themeIcon = document.getElementById('themeIcon');
         
-        const savedTheme = localStorage.getItem('foodtrace_theme');
         if (savedTheme === 'dark') {
             document.body.classList.add('dark-mode');
-            themeIcon.className = 'bi bi-sun-fill text-warning';
+            if(themeIcon) themeIcon.className = 'bi bi-sun-fill me-2 text-warning';
         }
 
         function toggleTheme() {
             document.body.classList.toggle('dark-mode');
             const isDark = document.body.classList.contains('dark-mode');
             localStorage.setItem('foodtrace_theme', isDark ? 'dark' : 'light');
-            themeIcon.className = isDark ? 'bi bi-sun-fill text-warning' : 'bi bi-moon-stars-fill';
+            
+            const icon = document.getElementById('themeIcon');
+            if(icon) {
+                icon.className = isDark ? 'bi bi-sun-fill me-2 text-warning' : 'bi bi-moon-stars-fill me-2';
+            }
         }
 
         // Dismiss notification badge on click
@@ -1012,136 +1023,26 @@ $donor_active_pledges = max(0, $donor_total_pledges - $donor_delivered_pledges);
         }
 
         // ==========================================
-        // SILENT AJAX POLLING - LIVE DATA SYNC
+        // INITIALIZATION ON LOAD (Active States & Filters)
         // ==========================================
-        setInterval(() => {
-            fetch(window.location.href)
-                .then(res => res.text())
-                .then(html => {
-                    const doc = new DOMParser().parseFromString(html, 'text/html');
-
-                    // 1. Update Telemetry Metrics
-                    ['stat-pledges', 'stat-active', 'stat-delivered'].forEach(id => {
-                        const newEl = doc.getElementById(id);
-                        const oldEl = document.getElementById(id);
-                        if (newEl && oldEl) {
-                            oldEl.textContent = newEl.textContent;
-                        }
-                    });
-
-                    // 2. Update Needs Table (Only if user isn't typing in search)
-                    if (document.activeElement.id !== 'needsSearchInput') {
-                        const newNeeds = doc.getElementById('needsTableBody');
-                        const oldNeeds = document.getElementById('needsTableBody');
-                        if (newNeeds && oldNeeds) oldNeeds.innerHTML = newNeeds.innerHTML;
-                    }
-
-                    // 3. Update Consignments History Table (Only if user isn't searching)
-                    if (document.activeElement.id !== 'historySearchInput') {
-                        const newHistory = doc.getElementById('historyTableBody');
-                        const oldHistory = document.getElementById('historyTableBody');
-                        if (newHistory && oldHistory) oldHistory.innerHTML = newHistory.innerHTML;
-                    }
-
-                    // 4. Update Notification Dropdown & Bell Badge
-                    const newDropdown = doc.querySelector('.dropdown-menu-notif');
-                    if (newDropdown) {
-                        document.querySelector('.dropdown-menu-notif').innerHTML = newDropdown.innerHTML;
-                    }
-                    
-                    const oldBadge = document.getElementById('notifBadgeCount');
-                    const newBadge = doc.getElementById('notifBadgeCount');
-                    if (newBadge) {
-                        if (oldBadge) {
-                            oldBadge.outerHTML = newBadge.outerHTML;
-                        } else {
-                            document.querySelector('.notif-bell').insertAdjacentHTML('beforeend', newBadge.outerHTML);
-                        }
-                    } else if (oldBadge) {
-                        oldBadge.remove();
-                    }
-                })
-                .catch(err => console.log('Live sync paused'));
-        }, 4000); // Scans for database updates every 4 seconds
-
-
-        // Open Pledge Modal
-        function openPledgeModal(comm) {
-            document.getElementById('pledgeCommId').value = comm.Commodity_ID;
-            document.getElementById('pledgeLocation').value = comm.Location;
-            document.getElementById('pledgeCommName').value = comm.Commodity;
-            document.getElementById('pledgeHubDisplay').value = comm.Location;
-
-            // Extract unit suffix
-            const parts = comm.Quantity.split(' ');
-            const unit = parts.length > 1 ? parts[parts.length - 1] : 'units';
-            document.getElementById('pledgeUnitDisplay').textContent = unit;
-
-            new bootstrap.Modal(document.getElementById('pledgeModal')).show();
-        }
-
-        // Open QR Pass Modal & Update 3-Stage Progress Stepper + Timestamps
-        function openQrModal(item, donorName) {
-            document.getElementById('qrModalTitle').textContent = `Consignment #${item.Dontation_ID}`;
-            document.getElementById('qrCommName').textContent = item.Commodity;
-            document.getElementById('qrQuantity').textContent = item.DonatedQty;
-            document.getElementById('qrDonorName').textContent = donorName;
-            document.getElementById('qrHubName').textContent = item.Location;
-
-            const badge = document.getElementById('qrStatusBadge');
-            badge.textContent = item.Status;
-            badge.className = 'status-badge ' + (item.Status === 'Delivered' ? 'status-delivered' : (item.Status === 'Collected' ? 'status-collected' : 'status-pending'));
-
-            // Populate timestamps in details box and under stepper icons
-            const pledgedVal = item.Pledged_At || item.Date_Donated || 'Recorded';
-            const collectedVal = item.Collected_At || 'Pending Depot Scan';
-            const deliveredVal = item.Delivered_At || 'Pending Final Scan';
-
-            document.getElementById('qrPledgedTime').textContent = pledgedVal;
-            document.getElementById('qrCollectedTime').textContent = collectedVal;
-            document.getElementById('qrDeliveredTime').textContent = deliveredVal;
-
-            document.getElementById('step1Time').textContent = item.Pledged_At ? item.Pledged_At.split(' ')[1] : '';
-            document.getElementById('step2Time').textContent = item.Collected_At ? item.Collected_At.split(' ')[1] : '';
-            document.getElementById('step3Time').textContent = item.Delivered_At ? item.Delivered_At.split(' ')[1] : '';
-
-            // Update Progress Stepper
-            const s1 = document.getElementById('step1');
-            const s2 = document.getElementById('step2');
-            const s3 = document.getElementById('step3');
-
-            s2.className = 'stepper-item';
-            s2.querySelector('.step-counter').innerHTML = '2';
-            s3.className = 'stepper-item';
-            s3.querySelector('.step-counter').innerHTML = '3';
-
-            if (item.Status === 'Collected') {
-                s2.className = 'stepper-item completed';
-                s2.querySelector('.step-counter').innerHTML = '<i class="bi bi-check"></i>';
-            } else if (item.Status === 'Delivered') {
-                s2.className = 'stepper-item completed';
-                s2.querySelector('.step-counter').innerHTML = '<i class="bi bi-check"></i>';
-                s3.className = 'stepper-item completed';
-                s3.querySelector('.step-counter').innerHTML = '<i class="bi bi-check"></i>';
+        document.addEventListener('DOMContentLoaded', function() {
+            
+            // Highlight Active Language Button based on Cookie
+            const langCookie = document.cookie.split('; ').find(row => row.startsWith('googtrans='));
+            const btnEn = document.getElementById('btn-lang-en');
+            const btnSw = document.getElementById('btn-lang-sw');
+            
+            if (langCookie && langCookie.includes('/en/sw')) {
+                if(btnSw) { btnSw.classList.remove('btn-outline-secondary'); btnSw.classList.add('btn-primary-custom'); }
+            } else {
+                if(btnEn) { btnEn.classList.remove('btn-outline-secondary'); btnEn.classList.add('btn-primary-custom'); }
             }
 
-            // Generate clean QR code
-            const qrContainer = document.getElementById('qrCodeContainer');
-            qrContainer.innerHTML = '';
-            new QRCode(qrContainer, {
-                text: String(item.Dontation_ID),
-                width: 180,
-                height: 180,
-                colorDark: "#0f172a",
-                colorLight: "#ffffff",
-                correctLevel: QRCode.CorrectLevel.H
-            });
+            // Highlight Active Text Size Button based on LocalStorage
+            const savedSize = localStorage.getItem('foodtrace_text_size') || 'default';
+            updateTextSizeButtons(savedSize);
 
-            new bootstrap.Modal(document.getElementById('qrPassModal')).show();
-        }
-
-        // Instant Live Filters
-        document.addEventListener('DOMContentLoaded', function() {
+            // Instant Live Search Filters
             const needsSearch = document.getElementById('needsSearchInput');
             if (needsSearch) {
                 needsSearch.addEventListener('input', function() {
@@ -1165,6 +1066,123 @@ $donor_active_pledges = max(0, $donor_total_pledges - $donor_delivered_pledges);
             }
         });
 
+        // ==========================================
+        // SILENT AJAX POLLING - LIVE DATA SYNC
+        // ==========================================
+        setInterval(() => {
+            fetch(window.location.href)
+                .then(res => res.text())
+                .then(html => {
+                    const doc = new DOMParser().parseFromString(html, 'text/html');
+
+                    ['stat-pledges', 'stat-active', 'stat-delivered'].forEach(id => {
+                        const newEl = doc.getElementById(id);
+                        const oldEl = document.getElementById(id);
+                        if (newEl && oldEl) oldEl.textContent = newEl.textContent;
+                    });
+
+                    if (document.activeElement.id !== 'needsSearchInput') {
+                        const newNeeds = doc.getElementById('needsTableBody');
+                        const oldNeeds = document.getElementById('needsTableBody');
+                        if (newNeeds && oldNeeds) oldNeeds.innerHTML = newNeeds.innerHTML;
+                    }
+
+                    if (document.activeElement.id !== 'historySearchInput') {
+                        const newHistory = doc.getElementById('historyTableBody');
+                        const oldHistory = document.getElementById('historyTableBody');
+                        if (newHistory && oldHistory) oldHistory.innerHTML = newHistory.innerHTML;
+                    }
+
+                    const newDropdown = doc.querySelector('.dropdown-menu-notif');
+                    if (newDropdown) {
+                        document.querySelector('.dropdown-menu-notif').innerHTML = newDropdown.innerHTML;
+                    }
+                    
+                    const oldBadge = document.getElementById('notifBadgeCount');
+                    const newBadge = doc.getElementById('notifBadgeCount');
+                    if (newBadge) {
+                        if (oldBadge) {
+                            oldBadge.outerHTML = newBadge.outerHTML;
+                        } else {
+                            document.querySelector('.notif-bell').insertAdjacentHTML('beforeend', newBadge.outerHTML);
+                        }
+                    } else if (oldBadge) {
+                        oldBadge.remove();
+                    }
+                })
+                .catch(err => console.log('Live sync paused'));
+        }, 4000); 
+
+        // Open Pledge Modal
+        function openPledgeModal(comm) {
+            document.getElementById('pledgeCommId').value = comm.Commodity_ID;
+            document.getElementById('pledgeLocation').value = comm.Location;
+            document.getElementById('pledgeCommName').value = comm.Commodity;
+            document.getElementById('pledgeHubDisplay').value = comm.Location;
+
+            const parts = comm.Quantity.split(' ');
+            const unit = parts.length > 1 ? parts[parts.length - 1] : 'units';
+            document.getElementById('pledgeUnitDisplay').textContent = unit;
+
+            new bootstrap.Modal(document.getElementById('pledgeModal')).show();
+        }
+
+        // Open QR Pass Modal & Update 3-Stage Progress Stepper
+        function openQrModal(item, donorName) {
+            document.getElementById('qrModalTitle').textContent = `Consignment #${item.Dontation_ID}`;
+            document.getElementById('qrCommName').textContent = item.Commodity;
+            document.getElementById('qrQuantity').textContent = item.DonatedQty;
+            document.getElementById('qrDonorName').textContent = donorName;
+            document.getElementById('qrHubName').textContent = item.Location;
+
+            const badge = document.getElementById('qrStatusBadge');
+            badge.textContent = item.Status;
+            badge.className = 'status-badge ' + (item.Status === 'Delivered' ? 'status-delivered' : (item.Status === 'Collected' ? 'status-collected' : 'status-pending'));
+
+            const pledgedVal = item.Pledged_At || item.Date_Donated || 'Recorded';
+            const collectedVal = item.Collected_At || 'Pending Depot Scan';
+            const deliveredVal = item.Delivered_At || 'Pending Final Scan';
+
+            document.getElementById('qrPledgedTime').textContent = pledgedVal;
+            document.getElementById('qrCollectedTime').textContent = collectedVal;
+            document.getElementById('qrDeliveredTime').textContent = deliveredVal;
+
+            document.getElementById('step1Time').textContent = item.Pledged_At ? item.Pledged_At.split(' ')[1] : '';
+            document.getElementById('step2Time').textContent = item.Collected_At ? item.Collected_At.split(' ')[1] : '';
+            document.getElementById('step3Time').textContent = item.Delivered_At ? item.Delivered_At.split(' ')[1] : '';
+
+            const s2 = document.getElementById('step2');
+            const s3 = document.getElementById('step3');
+
+            s2.className = 'stepper-item';
+            s2.querySelector('.step-counter').innerHTML = '2';
+            s3.className = 'stepper-item';
+            s3.querySelector('.step-counter').innerHTML = '3';
+
+            if (item.Status === 'Collected') {
+                s2.className = 'stepper-item completed';
+                s2.querySelector('.step-counter').innerHTML = '<i class="bi bi-check"></i>';
+            } else if (item.Status === 'Delivered') {
+                s2.className = 'stepper-item completed';
+                s2.querySelector('.step-counter').innerHTML = '<i class="bi bi-check"></i>';
+                s3.className = 'stepper-item completed';
+                s3.querySelector('.step-counter').innerHTML = '<i class="bi bi-check"></i>';
+            }
+
+            const qrContainer = document.getElementById('qrCodeContainer');
+            qrContainer.innerHTML = '';
+            new QRCode(qrContainer, {
+                text: String(item.Dontation_ID),
+                width: 180,
+                height: 180,
+                colorDark: "#0f172a",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+            });
+
+            new bootstrap.Modal(document.getElementById('qrPassModal')).show();
+        }
+
         function printTableData(tableId, title) {
             const divToPrint = document.getElementById(tableId);
             const win = window.open("", "", "height=700,width=900");
@@ -1177,6 +1195,33 @@ $donor_active_pledges = max(0, $donor_total_pledges - $donor_delivered_pledges);
             win.document.close();
             win.print();
             win.close();
+        }
+
+        // ==========================================
+        // ACCESSIBILITY: TEXT RESIZER LOGIC
+        // ==========================================
+        function changeTextSize(sizeClass) {
+            document.documentElement.classList.remove('a11y-large', 'a11y-xlarge');
+            if (sizeClass !== 'default') {
+                document.documentElement.classList.add(sizeClass);
+                localStorage.setItem('foodtrace_text_size', sizeClass);
+            } else {
+                localStorage.removeItem('foodtrace_text_size');
+            }
+            updateTextSizeButtons(sizeClass);
+        }
+
+        function updateTextSizeButtons(activeSize) {
+            const btns = document.querySelectorAll('.text-size-btn');
+            btns.forEach(btn => {
+                btn.classList.remove('btn-primary-custom');
+                btn.classList.add('btn-outline-secondary');
+            });
+            const activeBtn = document.getElementById('btn-text-' + activeSize);
+            if (activeBtn) {
+                activeBtn.classList.remove('btn-outline-secondary');
+                activeBtn.classList.add('btn-primary-custom');
+            }
         }
     </script>
 </body>

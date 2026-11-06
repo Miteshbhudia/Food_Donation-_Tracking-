@@ -1,5 +1,38 @@
 [
     {
+        "id": "notif_6aed5fd5729062.20043612",
+        "recipient_role": "Donor",
+        "recipient_id": 1,
+        "location": "Nairobi",
+        "title": "Consignment #3 \u2014 Delivered",
+        "message": "Your consignment of 20 (maize) at Nairobi Hub was updated to 'Delivered'.",
+        "timestamp": "2026-11-06 08:04:21",
+        "stage": "Delivered",
+        "is_read": false
+    },
+    {
+        "id": "notif_6aed5fccd485a2.54946809",
+        "recipient_role": "Donor",
+        "recipient_id": 1,
+        "location": "Nairobi",
+        "title": "Consignment #3 \u2014 Collected",
+        "message": "Your consignment of 20 (maize) at Nairobi Hub was updated to 'Collected'.",
+        "timestamp": "2026-11-06 08:04:12",
+        "stage": "Collected",
+        "is_read": false
+    },
+    {
+        "id": "notif_6aed5fbb6922b3.36157107",
+        "recipient_role": "Donor",
+        "recipient_id": 1,
+        "location": "Nairobi",
+        "title": "Consignment #3 \u2014 Pending Pickup",
+        "message": "Your consignment of 20 (maize) at Nairobi Hub was updated to 'Pending Pickup'.",
+        "timestamp": "2026-11-06 08:03:55",
+        "stage": "Pending Pickup",
+        "is_read": false
+    },
+    {
         "id": "notif_6aec4a49a45413.37042011",
         "recipient_role": "Donor",
         "recipient_id": 1,

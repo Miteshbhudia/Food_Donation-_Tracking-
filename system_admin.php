@@ -533,15 +533,25 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
             padding: 3.5rem 0 1.5rem 0;
             margin-top: 5rem;
         }
+
+        /* ACCESSIBILITY: Low-Vision Text Resizer Classes */
+        html.a11y-large { font-size: 115% !important; }
+        html.a11y-xlarge { font-size: 130% !important; }
     </style>
     
-    <!-- Instant Dark Mode Applicator (Prevents white flash on load) -->
+    <!-- Instant Theme & Accessibility Applicator (Prevents white flash on load) -->
     <script>
+        // Apply Dark Mode
         if (localStorage.getItem('foodtrace_theme') === 'dark') {
             document.documentElement.classList.add('dark-mode');
             document.addEventListener("DOMContentLoaded", function() {
                 document.body.classList.add('dark-mode');
             });
+        }
+        // Apply Accessibility Text Size
+        const savedTextSize = localStorage.getItem('foodtrace_text_size');
+        if (savedTextSize) {
+            document.documentElement.classList.add(savedTextSize);
         }
     </script>
 </head>
@@ -550,31 +560,15 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
     <!-- Hidden Google Translate Element -->
     <div id="google_translate_element" style="display:none;"></div>
 
-    <!-- Top Navigation -->
+    <!-- Cleaned Up Navbar -->
     <nav class="navbar navbar-expand-lg sticky-top">
         <div class="container">
             <a href="system_admin.php" class="brand-title">Food<span>Trace</span> <span class="badge bg-success-subtle text-success border border-success-subtle fs-6 fw-semibold ms-2">System Admin</span></a>
             <div class="ms-auto d-flex align-items-center gap-2">
                 <span class="small text-muted d-none d-md-inline me-2"><i class="bi bi-shield-lock-fill text-success me-1"></i><?php echo htmlspecialchars($fullname); ?></span>
                 
-                <!-- Native Language Dropdown -->
-                <div class="dropdown me-2">
-                    <button class="btn btn-outline-secondary btn-sm dropdown-toggle fw-semibold" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        <i class="bi bi-translate me-1"></i> <span id="currentLangText">English</span>
-                    </button>
-                    <ul class="dropdown-menu dropdown-menu-end shadow border-0">
-                        <li><a class="dropdown-item small py-2" href="#" onclick="changeLanguage('en'); return false;">English (EN)</a></li>
-                        <li><a class="dropdown-item small py-2" href="#" onclick="changeLanguage('sw'); return false;">Kiswahili (SW)</a></li>
-                    </ul>
-                </div>
-
-                <!-- Dark Mode Toggle -->
-                <button id="themeToggle" class="btn btn-outline-secondary btn-sm rounded-circle me-1" onclick="toggleTheme()" title="Toggle Dark/Light Mode">
-                    <i class="bi bi-moon-stars-fill" id="themeIcon"></i>
-                </button>
-
-                <!-- Profile Settings Modal Trigger -->
-                <button class="btn btn-outline-secondary btn-sm me-2" data-bs-toggle="modal" data-bs-target="#profileModal" title="Account Settings">
+                <!-- Settings Modal Trigger (Now handles preferences too) -->
+                <button class="btn btn-outline-secondary btn-sm me-2" data-bs-toggle="modal" data-bs-target="#profileModal" title="Account & Preferences">
                     <i class="bi bi-gear-fill"></i>
                 </button>
 
@@ -1000,7 +994,7 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow-lg">
                 <div class="modal-header bg-dark text-white">
-                    <h5 class="modal-title fw-bold"><i class="bi bi-person-gear text-success me-2"></i>Account Settings</h5>
+                    <h5 class="modal-title fw-bold"><i class="bi bi-person-gear text-success me-2"></i>Account & Preferences</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <form method="POST" action="system_admin.php">
@@ -1018,11 +1012,37 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
                             <label class="form-label small fw-semibold">HQ Location / Office</label>
                             <input type="text" name="location" class="form-control" value="<?php echo htmlspecialchars($admin_location); ?>" required>
                         </div>
-                        <hr class="my-4 border-secondary">
-                        <h6 class="fw-bold mb-3">Security</h6>
                         <div class="mb-2">
                             <label class="form-label small fw-semibold">Change Password <span class="text-muted fw-normal">(Leave blank to keep current)</span></label>
                             <input type="password" name="new_password" class="form-control" placeholder="Enter new secure password">
+                        </div>
+
+                        <!-- Display & Accessibility Section -->
+                        <hr class="my-4 border-secondary">
+                        <h6 class="fw-bold mb-3"><i class="bi bi-display me-2 text-primary"></i>Display & Accessibility</h6>
+                        
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">App Theme</label><br>
+                                <button type="button" class="btn btn-outline-secondary btn-sm w-100 text-start" onclick="toggleTheme()">
+                                    <i class="bi bi-moon-stars-fill me-2" id="themeIcon"></i> Toggle Dark/Light
+                                </button>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Language</label><br>
+                                <div class="btn-group w-100" role="group">
+                                    <button type="button" id="btn-lang-en" class="btn btn-outline-secondary btn-sm lang-btn" onclick="changeLanguage('en')">English</button>
+                                    <button type="button" id="btn-lang-sw" class="btn btn-outline-secondary btn-sm lang-btn" onclick="changeLanguage('sw')">Kiswahili</button>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small fw-semibold">Text Size</label><br>
+                                <div class="btn-group w-100" role="group" aria-label="Text Size Accessibility controls">
+                                    <button type="button" id="btn-text-default" class="btn btn-outline-secondary btn-sm fw-bold text-size-btn" onclick="changeTextSize('default')">A (Default)</button>
+                                    <button type="button" id="btn-text-a11y-large" class="btn btn-outline-secondary btn-sm fw-bold text-size-btn" onclick="changeTextSize('a11y-large')">A+ (Large)</button>
+                                    <button type="button" id="btn-text-a11y-xlarge" class="btn btn-outline-secondary btn-sm fw-bold text-size-btn" onclick="changeTextSize('a11y-xlarge')">A++ (Extra Large)</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div class="modal-footer border-0">
@@ -1060,16 +1080,6 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
             }
             window.location.reload();
         }
-
-        // Highlight active language text on load
-        document.addEventListener("DOMContentLoaded", function() {
-            const langText = document.getElementById('currentLangText');
-            if (document.cookie.includes('googtrans=/en/sw')) {
-                if(langText) langText.innerText = 'Kiswahili';
-            } else {
-                if(langText) langText.innerText = 'English';
-            }
-        });
     </script>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -1081,14 +1091,80 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
         const savedTheme = localStorage.getItem('foodtrace_theme');
         if (savedTheme === 'dark') {
             document.body.classList.add('dark-mode');
-            if (themeIcon) themeIcon.className = 'bi bi-sun-fill text-warning';
+            if (themeIcon) themeIcon.className = 'bi bi-sun-fill me-2 text-warning';
         }
 
         function toggleTheme() {
             document.body.classList.toggle('dark-mode');
             const isDark = document.body.classList.contains('dark-mode');
             localStorage.setItem('foodtrace_theme', isDark ? 'dark' : 'light');
-            if (themeIcon) themeIcon.className = isDark ? 'bi bi-sun-fill text-warning' : 'bi bi-moon-stars-fill';
+            if (themeIcon) themeIcon.className = isDark ? 'bi bi-sun-fill me-2 text-warning' : 'bi bi-moon-stars-fill me-2';
+        }
+
+        // ==========================================
+        // INITIALIZATION ON LOAD (Active States)
+        // ==========================================
+        document.addEventListener('DOMContentLoaded', function() {
+            
+            // Highlight Active Language Button based on Cookie
+            const langCookie = document.cookie.split('; ').find(row => row.startsWith('googtrans='));
+            const btnEn = document.getElementById('btn-lang-en');
+            const btnSw = document.getElementById('btn-lang-sw');
+            
+            if (langCookie && langCookie.includes('/en/sw')) {
+                if(btnSw) { btnSw.classList.remove('btn-outline-secondary'); btnSw.classList.add('btn-primary-custom'); }
+            } else {
+                if(btnEn) { btnEn.classList.remove('btn-outline-secondary'); btnEn.classList.add('btn-primary-custom'); }
+            }
+
+            // Highlight Active Text Size Button based on LocalStorage
+            const savedSize = localStorage.getItem('foodtrace_text_size') || 'default';
+            updateTextSizeButtons(savedSize);
+            
+            const editSection = document.getElementById('editSection');
+            if (editSection) { editSection.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+
+            const searchInput = document.getElementById('accountSearchInput');
+            if (searchInput) {
+                searchInput.addEventListener('input', function() {
+                    const filter = this.value.toLowerCase().trim();
+                    const tables = document.querySelectorAll('.table-filterable tbody');
+                    tables.forEach(tbody => {
+                        const rows = tbody.querySelectorAll('tr');
+                        rows.forEach(row => {
+                            const text = row.textContent.toLowerCase();
+                            row.style.display = text.includes(filter) ? '' : 'none';
+                        });
+                    });
+                });
+            }
+        });
+
+        // ==========================================
+        // ACCESSIBILITY: TEXT RESIZER LOGIC
+        // ==========================================
+        function changeTextSize(sizeClass) {
+            document.documentElement.classList.remove('a11y-large', 'a11y-xlarge');
+            if (sizeClass !== 'default') {
+                document.documentElement.classList.add(sizeClass);
+                localStorage.setItem('foodtrace_text_size', sizeClass);
+            } else {
+                localStorage.removeItem('foodtrace_text_size');
+            }
+            updateTextSizeButtons(sizeClass);
+        }
+
+        function updateTextSizeButtons(activeSize) {
+            const btns = document.querySelectorAll('.text-size-btn');
+            btns.forEach(btn => {
+                btn.classList.remove('btn-primary-custom');
+                btn.classList.add('btn-outline-secondary');
+            });
+            const activeBtn = document.getElementById('btn-text-' + activeSize);
+            if (activeBtn) {
+                activeBtn.classList.remove('btn-outline-secondary');
+                activeBtn.classList.add('btn-primary-custom');
+            }
         }
 
         // Update URL state without page reload when user changes tabs
@@ -1132,26 +1208,6 @@ $total_commodities = $commodity_res->fetch_assoc()['total'] ?? 0;
                 })
                 .catch(err => console.log('Live sync paused'));
         }, 4000);
-
-        document.addEventListener('DOMContentLoaded', function() {
-            const editSection = document.getElementById('editSection');
-            if (editSection) { editSection.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
-
-            const searchInput = document.getElementById('accountSearchInput');
-            if (searchInput) {
-                searchInput.addEventListener('input', function() {
-                    const filter = this.value.toLowerCase().trim();
-                    const tables = document.querySelectorAll('.table-filterable tbody');
-                    tables.forEach(tbody => {
-                        const rows = tbody.querySelectorAll('tr');
-                        rows.forEach(row => {
-                            const text = row.textContent.toLowerCase();
-                            row.style.display = text.includes(filter) ? '' : 'none';
-                        });
-                    });
-                });
-            }
-        });
 
         function printAuditReport() {
             const tableHtml = document.getElementById("auditTable").outerHTML;
