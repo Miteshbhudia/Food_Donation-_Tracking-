@@ -261,8 +261,9 @@ $stat_delivered = $conn->query("SELECT COUNT(*) AS total FROM `goods_donated` WH
         body.dark-mode select.form-select,
         body.dark-mode .input-group-text, 
         body.dark-mode .search-input-box input { background-color: #0f172a; color: #f8fafc; border-color: var(--card-border); }
-        body.dark-mode .btn-print, body.dark-mode .btn-outline-secondary { background-color: transparent; border-color: var(--card-border); color: #94a3b8; }
+        body.dark-mode .btn-print, body.dark-mode .btn-outline-secondary, body.dark-mode .btn-outline-danger { background-color: transparent; border-color: var(--card-border); color: #94a3b8; }
         body.dark-mode .btn-print:hover, body.dark-mode .btn-outline-secondary:hover { background-color: #334155; color: #f8fafc; }
+        body.dark-mode .btn-outline-danger:hover { background-color: #ef4444; color: #ffffff; border-color: #ef4444; }
         body.dark-mode .notif-item:hover { background-color: #334155; }
         body.dark-mode .alert-light { background-color: #0f172a !important; color: #f8fafc !important; border-color: var(--card-border) !important; }
         body.dark-mode .dropdown-item { color: #f8fafc; }
@@ -686,6 +687,7 @@ $stat_delivered = $conn->query("SELECT COUNT(*) AS total FROM `goods_donated` WH
                             <th>Commodity</th>
                             <th>Quantity Needed</th>
                             <th>Date & Time Added</th>
+                            <th class="text-center">Action</th>
                         </tr>
                     </thead>
                     <tbody id="commTableBody">
@@ -710,23 +712,21 @@ $stat_delivered = $conn->query("SELECT COUNT(*) AS total FROM `goods_donated` WH
                                 echo "<td class='fw-semibold filter-cell'>" . htmlspecialchars($row_c["Commodity"]) . "</td>";
                                 echo "<td><span class='badge bg-secondary-subtle text-secondary-emphasis'>" . htmlspecialchars($row_c["Quantity"]) . "</span></td>";
                                 echo "<td class='text-muted small'>" . formatDateTimeDisplay($row_c["Date_Added"]) . "</td>";
+                                echo "<td class='text-center'>
+                                        <form method='POST' action='delete.php' class='m-0' onsubmit='return confirm(\"Are you sure you want to withdraw this commodity need?\");'>
+                                            <input type='hidden' name='id1' value='" . htmlspecialchars($row_c["Commodity_ID"]) . "'>
+                                            <button type='submit' name='delc1' class='btn btn-outline-danger btn-sm' title='Withdraw Request'><i class='bi bi-trash3'></i></button>
+                                        </form>
+                                      </td>";
                                 echo "</tr>";
                             }
                         } else {
-                            echo "<tr><td colspan='6' class='text-center py-4 text-muted'>No commodities currently declared for this regional hub.</td></tr>";
+                            echo "<tr><td colspan='7' class='text-center py-4 text-muted'>No commodities currently declared for this regional hub.</td></tr>";
                         }
                         $stmt_c->close();
                         ?>
                     </tbody>
                 </table>
-            </div>
-
-            <div class="mt-4 pt-3 border-top text-center">
-                <form method="POST" action="delete.php" class="d-inline-flex flex-wrap align-items-center justify-content-center gap-2">
-                    <span class="small text-muted">To remove a fulfilled commodity need, enter ID:</span>
-                    <input type="number" required name="id1" id="deleteCommInput" class="form-control form-control-sm" placeholder="Commodity ID" style="max-width: 140px;">
-                    <button type="submit" name="delc1" class="btn btn-outline-danger btn-sm">Delete Commodity</button>
-                </form>
             </div>
         </div>
 
@@ -827,17 +827,23 @@ $stat_delivered = $conn->query("SELECT COUNT(*) AS total FROM `goods_donated` WH
                                         </div>
                                       </td>";
                                 
-                                echo "<td>
-                                        <form method='POST' action='index1.php' class='d-flex align-items-center gap-1'>
+                                echo "<td>";
+                                if ($status === 'Pending Pickup') {
+                                    echo "<form method='POST' action='index1.php' class='m-0' onsubmit='return confirm(\"Are you sure you want to mark Consignment #" . htmlspecialchars($row_d["Dontation_ID"]) . " as COLLECTED?\");'>
                                             <input type='hidden' name='donation_id' value='" . htmlspecialchars($row_d["Dontation_ID"]) . "'>
-                                            <select name='status' class='form-select form-select-sm' style='max-width: 135px;' id='select-status-" . htmlspecialchars($row_d["Dontation_ID"]) . "'>
-                                                <option value='Pending Pickup'" . ($status === 'Pending Pickup' ? ' selected' : '') . ">Pending Pickup</option>
-                                                <option value='Collected'" . ($status === 'Collected' ? ' selected' : '') . ">Collected</option>
-                                                <option value='Delivered'" . ($status === 'Delivered' ? ' selected' : '') . ">Delivered</option>
-                                            </select>
-                                            <button type='submit' name='update_status' class='btn btn-outline-secondary btn-sm'>Update</button>
-                                        </form>
-                                      </td>";
+                                            <input type='hidden' name='status' value='Collected'>
+                                            <button type='submit' name='update_status' class='btn btn-outline-primary btn-sm fw-semibold'><i class='bi bi-box-arrow-in-down me-1'></i>Mark Collected</button>
+                                          </form>";
+                                } elseif ($status === 'Collected') {
+                                    echo "<form method='POST' action='index1.php' class='m-0' onsubmit='return confirm(\"Are you sure you want to mark Consignment #" . htmlspecialchars($row_d["Dontation_ID"]) . " as DELIVERED?\");'>
+                                            <input type='hidden' name='donation_id' value='" . htmlspecialchars($row_d["Dontation_ID"]) . "'>
+                                            <input type='hidden' name='status' value='Delivered'>
+                                            <button type='submit' name='update_status' class='btn btn-success btn-sm fw-semibold'><i class='bi bi-send-check-fill me-1'></i>Mark Delivered</button>
+                                          </form>";
+                                } else {
+                                    echo "<span class='text-muted small fw-semibold'><i class='bi bi-check-circle-fill text-success me-1'></i>Fully Delivered</span>";
+                                }
+                                echo "</td>";
                                 echo "</tr>";
                             }
                         } else {
@@ -939,7 +945,8 @@ $stat_delivered = $conn->query("SELECT COUNT(*) AS total FROM `goods_donated` WH
                         <span class="small text-muted">Click below to activate device optical sensor</span>
                     </div>
 
-                    <div id="scanAlert" class="alert py-2 small d-none mb-3"></div>
+                 
+                    <div id="scanAlert" class="alert py-2 small d-none mb-3" role="alert" aria-live="assertive" aria-atomic="true"></div>
 
                     <div class="d-flex gap-2">
                         <button id="btnModalStartScan" class="btn btn-primary-custom w-100 py-2"><i class="bi bi-camera-fill me-1"></i> Start Camera</button>
@@ -950,7 +957,7 @@ $stat_delivered = $conn->query("SELECT COUNT(*) AS total FROM `goods_donated` WH
                     <div class="mt-4 pt-3 border-top">
                         <label class="small text-muted d-block mb-2">Manual Consignment Verification (Failsafe):</label>
                         <div class="input-group">
-                            <input type="number" id="manualConsignmentId" class="form-control form-control-sm" placeholder="Consignment ID (e.g. 43)">
+                            <input type="number" id="manualConsignmentId" class="form-control form-control-sm" min="1" placeholder="Consignment ID (e.g. 43)">
                             <button class="btn btn-dark btn-sm px-3" onclick="submitManualConsignment()">Verify ID</button>
                         </div>
                     </div>
@@ -1108,7 +1115,7 @@ $stat_delivered = $conn->query("SELECT COUNT(*) AS total FROM `goods_donated` WH
                     });
 
                     // 2. Update Commodity Table
-                    if (document.activeElement.id !== 'commSearchInput' && document.activeElement.id !== 'deleteCommInput') {
+                    if (document.activeElement.id !== 'commSearchInput') {
                         document.getElementById('commTableBody').innerHTML = doc.getElementById('commTableBody').innerHTML;
                     }
 
@@ -1263,69 +1270,104 @@ $stat_delivered = $conn->query("SELECT COUNT(*) AS total FROM `goods_donated` WH
             processConsignmentCheckpoint(val);
         }
 
-        function processConsignmentCheckpoint(token) {
-            showScanAlert('Inspecting consignment state and progressing milestone...', 'info');
+function processConsignmentCheckpoint(token) {
+    showScanAlert('Inspecting consignment state and progressing milestone...', 'info');
 
-            const fd = new FormData();
-            fd.append('action', 'qr_scan_update');
-            fd.append('qr_token', token);
-            fd.append('location', <?php echo json_encode($admin_location); ?>);
+    const fd = new FormData();
+    fd.append('action', 'qr_scan_update');
+    fd.append('qr_token', token);
+    fd.append('location', <?php echo json_encode($admin_location); ?>);
 
-            fetch('update_u.php', {
-                method: 'POST',
-                body: fd
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    triggerScanFeedback(true);
-                    showScanAlert(`Success! Consignment #${data.consignment.id} (${data.consignment.item}): ${data.consignment.old_status} &rarr; <strong>${data.consignment.new_status}</strong> at ${data.consignment.timestamp}`, 'success');
+    fetch('update_u.php', {
+        method: 'POST',
+        body: fd
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            // 1. INSTANTLY SHUT OFF THE CAMERA TO PREVENT DOUBLE-SCANNING
+            stopScannerModal();
+            
+            // 2. TRIGGER AUDIO BEEP
+            triggerScanFeedback(true);
+            
+            // 3. SHOW BIG CHECKMARK/TICKMARK MESSAGE (Will also trigger text-to-speech)
+            showScanAlert(`<i class="bi bi-check-circle-fill fs-5 me-2 align-middle text-success"></i> Success! Consignment #${data.consignment.id} (${data.consignment.item}) updated to <strong>${data.consignment.new_status}</strong>`, 'success');
+            
+            // 4. Update the background table UI
+            const row = document.getElementById(`row-donation-${data.consignment.id}`);
+            const badge = document.getElementById(`badge-status-${data.consignment.id}`);
+            const select = document.getElementById(`select-status-${data.consignment.id}`);
+            
+            if (row) row.setAttribute('data-status', data.consignment.new_status);
+            if (badge) {
+                badge.textContent = data.consignment.new_status;
+                badge.className = 'status-badge ' + (data.consignment.new_status === 'Delivered' ? 'status-delivered' : 'status-collected');
+                
+                // Inject live timestamp span
+                if (data.consignment.timestamp) {
+                    const timeSpanId = `time-status-${data.consignment.id}`;
+                    let timeSpan = document.getElementById(timeSpanId);
                     
-                    const row = document.getElementById(`row-donation-${data.consignment.id}`);
-                    const badge = document.getElementById(`badge-status-${data.consignment.id}`);
-                    const select = document.getElementById(`select-status-${data.consignment.id}`);
-                    
-                    if (row) row.setAttribute('data-status', data.consignment.new_status);
-                    if (badge) {
-                        badge.textContent = data.consignment.new_status;
-                        badge.className = 'status-badge ' + (data.consignment.new_status === 'Delivered' ? 'status-delivered' : 'status-collected');
-                        
-                        // Inject live timestamp span
-                        if (data.consignment.timestamp) {
-                            const timeSpanId = `time-status-${data.consignment.id}`;
-                            let timeSpan = document.getElementById(timeSpanId);
-                            
-                            if (!timeSpan) {
-                                timeSpan = document.createElement('span');
-                                timeSpan.id = timeSpanId;
-                                timeSpan.className = 'timestamp-small';
-                                badge.parentNode.appendChild(timeSpan);
-                            }
-                            timeSpan.innerHTML = `<i class='bi bi-clock me-1'></i>${data.consignment.new_status}: ${data.consignment.timestamp}`;
-                        }
+                    if (!timeSpan) {
+                        timeSpan = document.createElement('span');
+                        timeSpan.id = timeSpanId;
+                        timeSpan.className = 'timestamp-small';
+                        badge.parentNode.appendChild(timeSpan);
                     }
-                    if (select) select.value = data.consignment.new_status;
-                } else if (data.already_fulfilled) {
-                    triggerScanFeedback(false);
-                    showScanAlert(`<i class="bi bi-shield-slash-fill me-1"></i> ${data.message}`, 'warning');
-                } else {
-                    triggerScanFeedback(false);
-                    showScanAlert(data.message, 'danger');
+                    timeSpan.innerHTML = `<i class='bi bi-clock me-1'></i>${data.consignment.new_status}: ${data.consignment.timestamp}`;
                 }
-                setTimeout(() => { isProcessingScan = false; }, 2500);
-            })
-            .catch(err => {
-                triggerScanFeedback(false);
-                showScanAlert('Network error during scan verification: ' + err, 'danger');
-                isProcessingScan = false;
-            });
+            }
+            if (select) select.value = data.consignment.new_status;
+            
+        } else if (data.already_fulfilled) {
+            // ALSO SHUT OFF CAMERA IF CODE WAS ALREADY SCANNED PREVIOUSLY
+            stopScannerModal();
+            triggerScanFeedback(false);
+            showScanAlert(`<i class="bi bi-shield-slash-fill fs-5 me-2 align-middle"></i> ${data.message}`, 'warning');
+        } else {
+            // Leave camera ON for normal errors (e.g. scanning the wrong type of QR code) so they can try again
+            triggerScanFeedback(false);
+            showScanAlert(`<i class="bi bi-exclamation-triangle-fill fs-5 me-2 align-middle"></i> ${data.message}`, 'danger');
         }
+        
+        setTimeout(() => { isProcessingScan = false; }, 2500);
+    })
+    .catch(err => {
+        triggerScanFeedback(false);
+        showScanAlert('Network error during scan verification: ' + err, 'danger');
+        isProcessingScan = false;
+    });
+}
 
-        function showScanAlert(msg, type) {
-            scanAlert.className = `alert alert-${type} py-2 small mb-3`;
-            scanAlert.innerHTML = msg;
-            scanAlert.classList.remove('d-none');
+function showScanAlert(msg, type) {
+    // 1. Update the visual alert box
+    scanAlert.className = `alert alert-${type} py-2 small mb-3`;
+    scanAlert.innerHTML = msg;
+    scanAlert.classList.remove('d-none');
+
+    // 2. Strip HTML tags (like <strong> or <br>) for clean audio reading
+    const plainText = msg.replace(/<[^>]*>?/gm, '');
+
+    // 3. Force the browser's native Text-to-Speech synthesizer to read the result
+    if ('speechSynthesis' in window) {
+        // Cancel any currently playing speech to avoid overlapping audio
+        window.speechSynthesis.cancel();
+        
+        const utterance = new SpeechSynthesisUtterance(plainText);
+        utterance.rate = 1.05; // Slightly faster than default
+        
+        // Optional: Match the language if the user is using the Swahili toggle
+        const langCookie = document.cookie.split('; ').find(row => row.startsWith('googtrans='));
+        if (langCookie && langCookie.includes('/en/sw')) {
+            utterance.lang = 'sw-KE';
+        } else {
+            utterance.lang = 'en-US';
         }
+        
+        window.speechSynthesis.speak(utterance);
+    }
+}
 
         function printTableData(tableId, title) {
             const divToPrint = document.getElementById(tableId);

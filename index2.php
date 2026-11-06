@@ -889,7 +889,7 @@ $donor_active_pledges = max(0, $donor_total_pledges - $donor_delivered_pledges);
                         <div class="mb-3">
                             <label class="form-label small fw-semibold">Quantity Pledged</label>
                             <div class="input-group">
-                                <input type="number" step="any" required name="quantity" class="form-control" placeholder="Enter amount to donate">
+                                <input type="number" step="any" min="1" required name="quantity" class="form-control" placeholder="Enter amount to donate">
                                 <span class="input-group-text bg-light" id="pledgeUnitDisplay">units</span>
                             </div>
                         </div>
@@ -960,6 +960,7 @@ $donor_active_pledges = max(0, $donor_total_pledges - $donor_delivered_pledges);
 
                 <div class="d-flex gap-2">
                     <button class="btn btn-primary-custom w-100" onclick="window.print()"><i class="bi bi-printer me-1"></i> Print Pass</button>
+                    <button class="btn btn-success w-100 text-white" onclick="downloadQR()"><i class="bi bi-download me-1"></i> Save Image</button>
                     <button class="btn btn-outline-secondary w-100" data-bs-dismiss="modal">Close</button>
                 </div>
             </div>
@@ -1181,6 +1182,30 @@ $donor_active_pledges = max(0, $donor_total_pledges - $donor_delivered_pledges);
             });
 
             new bootstrap.Modal(document.getElementById('qrPassModal')).show();
+        }
+
+        function downloadQR() {
+            const qrContainer = document.getElementById('qrCodeContainer');
+            const img = qrContainer.querySelector('img');
+            const title = document.getElementById('qrModalTitle').textContent.replace('#', '');
+            const filename = 'FoodTrace_QR_Pass_' + title + '.png';
+            
+            if (img && img.src) {
+                const link = document.createElement('a');
+                link.href = img.src;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            } else {
+                const canvas = qrContainer.querySelector('canvas');
+                if (canvas) {
+                    const link = document.createElement('a');
+                    link.href = canvas.toDataURL("image/png");
+                    link.download = filename;
+                    link.click();
+                }
+            }
         }
 
         function printTableData(tableId, title) {
