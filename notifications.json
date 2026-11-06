@@ -1,5 +1,38 @@
 [
     {
+        "id": "notif_6aedf5c36da9b5.62958247",
+        "recipient_role": "System Admin",
+        "recipient_id": 0,
+        "location": "Nairobi",
+        "title": "Suspicious Activity: Double-Scan Alert",
+        "message": "Intrusion Blocked: The Area Admin account (areaadmin@fooddistribution.com) at Nairobi hub attempted to physically re-scan Consignment #1, which was already recorded as Delivered.",
+        "timestamp": "2026-11-06 18:44:03",
+        "stage": "Alert",
+        "is_read": false
+    },
+    {
+        "id": "notif_6aedf578c760f7.88495638",
+        "recipient_role": "Donor",
+        "recipient_id": 1,
+        "location": "Nairobi",
+        "title": "Consignment #5 \u2014 Delivered",
+        "message": "Your consignment of 10 (maize) at Nairobi Hub was updated to 'Delivered'.",
+        "timestamp": "2026-11-06 18:42:48",
+        "stage": "Delivered",
+        "is_read": false
+    },
+    {
+        "id": "notif_6aedf570113a16.02156076",
+        "recipient_role": "Donor",
+        "recipient_id": 1,
+        "location": "Nairobi",
+        "title": "Consignment #5 \u2014 Collected",
+        "message": "Your consignment of 10 (maize) at Nairobi Hub was updated to 'Collected'.",
+        "timestamp": "2026-11-06 18:42:40",
+        "stage": "Collected",
+        "is_read": false
+    },
+    {
         "id": "notif_6aed72da259818.43782372",
         "recipient_role": "Donor",
         "recipient_id": 1,

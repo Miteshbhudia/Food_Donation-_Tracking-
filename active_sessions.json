@@ -1,7 +1,12 @@
 {
     "admin@fooddistribution.com": {
-        "token": "1cba50c0d6179657c2872575f749e7d47fd9d2b747395c2e5dd10a7d3a8907ec",
+        "token": "ca673d28b0e5ae5d79e9a79d19c3ba676ef7d85fa2705aa5c514ccca581df917",
         "role": "System Admin",
-        "last_seen": 1793976819
+        "last_seen": 1793979690
+    },
+    "areaadmin@fooddistribution.com": {
+        "token": "e2f1759683d6c9987745b91fbdcb2386cbd8a0e6b0602bca1889cf3cb45cd698",
+        "role": "Area Admin",
+        "last_seen": 1793979556
     }
 }

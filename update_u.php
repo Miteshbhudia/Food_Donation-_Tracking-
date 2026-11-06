@@ -39,6 +39,7 @@ if (isset($_POST['action']) and $_POST['action'] === 'qr_scan_update') {
 
     $raw_token    = trim($_POST['qr_token'] ?? '');
     $location     = trim($_POST['location'] ?? '');
+    $admin_email  = $_SESSION['Email1'] ?? $_SESSION['Email'] ?? 'Unknown Area Admin';
     $current_time = date('Y-m-d H:i:s');
 
     // Extract numerical consignment ID from QR token
@@ -70,12 +71,58 @@ if (isset($_POST['action']) and $_POST['action'] === 'qr_scan_update') {
         exit();
     }
 
-    $current_status = $consignment['Status'];
-    $donor_id       = $consignment['Donor_ID'];
-    $donor_name     = $consignment['Donor_Name'] ?? 'Donor';
-    $commodity      = $consignment['Commodity'] ?? 'Relief Supplies';
-    $quantity       = $consignment['Quantity'];
+    $current_status   = $consignment['Status'];
+    $donor_id         = $consignment['Donor_ID'];
+    $donor_name       = $consignment['Donor_Name'] ?? 'Donor';
+    $commodity        = $consignment['Commodity'] ?? 'Relief Supplies';
+    $quantity         = $consignment['Quantity'];
+    $target_location  = $consignment['Location'];
     
+    // ========================================================
+    // LOGIC BLOCK 1: GEOGRAPHIC FAULT DETECTION (Misroute)
+    // ========================================================
+    if (stripos($target_location, $location) === false && stripos($location, $target_location) === false) {
+        echo json_encode([
+            'success' => false, 
+            'message' => "FAULT DETECTED: This consignment is destined for the $target_location hub. It cannot be intercepted at the $location hub."
+        ]);
+        exit();
+    }
+
+    // ========================================================
+    // LOGIC BLOCK 2: SECURITY AUDIT FLAG (Double-Scan Intrusion)
+    // ========================================================
+    if ($current_status === 'Delivered') {
+        // Log a strict security alert to the System Admin
+        addSystemNotification(
+            'System Admin', 
+            0, 
+            $location, 
+            "Suspicious Activity: Double-Scan Alert", 
+            "Intrusion Blocked: The Area Admin account ({$admin_email}) at {$location} hub attempted to physically re-scan Consignment #{$donation_id}, which was already recorded as Delivered.", 
+            $current_time, 
+            "Alert"
+        );
+
+        echo json_encode([
+            'success'           => false,
+            'already_fulfilled' => true,
+            'message'           => "Consignment #$donation_id is already marked Delivered. This invalid physical scan has been blocked and logged to the System Admin as suspicious activity.",
+            'consignment'       => [
+                'id'        => $donation_id,
+                'donor'     => $donor_name,
+                'item'      => $commodity,
+                'quantity'  => $quantity,
+                'status'    => 'Delivered',
+                'location'  => $target_location
+            ]
+        ]);
+        exit();
+    }
+
+    // ========================================================
+    // NORMAL SMART AUTO-PROGRESSION
+    // ========================================================
     $new_status    = '';
     $stage_title   = '';
     $timestamp_col = '';
@@ -89,29 +136,13 @@ if (isset($_POST['action']) and $_POST['action'] === 'qr_scan_update') {
         $new_status    = 'Delivered';
         $stage_title   = "Distribution Handover Complete: Marked as 'Delivered'";
         $timestamp_col = 'Delivered_At';
-    } elseif ($current_status === 'Delivered') {
-        // Guardrail: Block duplicate scans on completed aid
-        echo json_encode([
-            'success'           => false,
-            'already_fulfilled' => true,
-            'message'           => "Consignment #$donation_id is already fulfilled. Cannot duplicate or revert milestone.",
-            'consignment'       => [
-                'id'        => $donation_id,
-                'donor'     => $donor_name,
-                'item'      => $commodity,
-                'quantity'  => $quantity,
-                'status'    => 'Delivered',
-                'location'  => $consignment['Location']
-            ]
-        ]);
-        exit();
     } else {
         $new_status    = 'Collected';
         $stage_title   = "Status updated to 'Collected'";
         $timestamp_col = 'Collected_At';
     }
 
-    $final_location = !empty($location) ? $location : $consignment['Location'];
+    $final_location = !empty($location) ? $location : $target_location;
 
     // Commit auto-progressed state to database WITH dynamic timestamp column
     $query = "UPDATE goods_donated SET Status = ?, Location = ?, {$timestamp_col} = ? WHERE Dontation_ID = ?";
@@ -143,7 +174,7 @@ if (isset($_POST['action']) and $_POST['action'] === 'qr_scan_update') {
                 'old_status' => $current_status,
                 'new_status' => $new_status,
                 'location'   => $final_location,
-                'timestamp'  => $current_time
+                'timestamp'  => date('H:i:s', strtotime($current_time))
             ]
         ]);
     } else {

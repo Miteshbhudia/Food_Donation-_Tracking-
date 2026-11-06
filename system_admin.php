@@ -64,6 +64,25 @@ $fullname = $sys_admin_data['Fullname'];
 $admin_id = $sys_admin_data['Administrator_ID'];
 $admin_location = $sys_admin_data['Location'];
 
+
+// ==========================================
+// 2. FETCH SYSTEM SECURITY AUDIT LOGS
+// ==========================================
+$notifFile = __DIR__ . '/notifications.json';
+$sys_notifications = [];
+$unread_sec_count = 0;
+
+if (file_exists($notifFile)) {
+    $all_notifs = json_decode(file_get_contents($notifFile), true) ?: [];
+    foreach ($all_notifs as $n) {
+        if (($n['recipient_role'] ?? '') === 'System Admin') {
+            $sys_notifications[] = $n;
+            if (empty($n['is_read'])) $unread_sec_count++;
+        }
+    }
+}
+
+
 // Read and clear flash messages (Post-Redirect-Get Pattern)
 $flash_success = $_SESSION['flash_success'] ?? null;
 $flash_error   = $_SESSION['flash_error'] ?? null;
@@ -78,7 +97,7 @@ $donor_to_edit    = null;
 $active_tab = $_GET['tab'] ?? 'area_admins';
 
 // ==========================================
-// 2. HANDLE FORM SUBMISSIONS (PRG PATTERN)
+// 3. HANDLE FORM SUBMISSIONS (PRG PATTERN)
 // ==========================================
 
 // A. Handle System Admin Profile Update (Self-Service)
@@ -231,7 +250,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'edit_donor' && isset($_GET['i
 }
 
 // ==========================================
-// 3. FETCH DASHBOARD STATISTICS & CHART DATA
+// 4. FETCH DASHBOARD STATISTICS & CHART DATA
 // ==========================================
 $donor_res = $conn->query("SELECT COUNT(*) as total FROM `donors`");
 $total_donors = $donor_res->fetch_assoc()['total'] ?? 0;
@@ -340,13 +359,8 @@ if ($comm_sql) {
         body.dark-mode .nav-tabs .nav-link.active { color: var(--primary); border-bottom-color: var(--primary); }
 
         /* SLA Bottleneck Row Highlighting */
-        .row-bottleneck {
-            background-color: #fef2f2 !important;
-        }
-        body.dark-mode .row-bottleneck td {
-            background-color: #3f1218 !important;
-            color: #fca5a5 !important;
-        }
+        .row-bottleneck { background-color: #fef2f2 !important; }
+        body.dark-mode .row-bottleneck td { background-color: #3f1218 !important; color: #fca5a5 !important; }
 
         /* HIDE GOOGLE TRANSLATE UGLY ELEMENTS COMPLETELY */
         body { top: 0 !important; }
@@ -549,6 +563,54 @@ if ($comm_sql) {
             box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.15);
         }
 
+        /* Notification Dropdown (Security Shield) */
+        .notif-bell {
+            position: relative;
+            cursor: pointer;
+            color: var(--gray-body);
+            font-size: 1.25rem;
+            transition: color 0.2s;
+        }
+        .notif-bell:hover { color: var(--dark); }
+        .notif-badge {
+            position: absolute;
+            top: -2px;
+            right: -4px;
+            background-color: #ef4444;
+            color: white;
+            font-size: 0.65rem;
+            font-weight: 700;
+            border-radius: 50px;
+            padding: 0.15rem 0.35rem;
+            border: 2px solid #ffffff;
+            animation: pulse-danger 2s infinite;
+        }
+        @keyframes pulse-danger {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+        .dropdown-menu-notif {
+            width: 360px;
+            max-height: 400px;
+            overflow-y: auto;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(15, 23, 42, 0.15);
+            border: 1px solid #fecaca;
+            padding: 0;
+            background-color: var(--bg-card);
+        }
+        .notif-item {
+            padding: 1rem;
+            border-bottom: 1px solid var(--card-border);
+            transition: background 0.2s;
+        }
+        .notif-item:hover { background-color: #fef2f2; }
+        .notif-item:last-child { border-bottom: none; }
+        .notif-title { font-size: 0.85rem; font-weight: 600; margin-bottom: 0.25rem; }
+        .notif-time { font-size: 0.7rem; color: #94a3b8; white-space: nowrap; }
+        .notif-msg { font-size: 0.8rem; color: var(--dark); margin-bottom: 0; line-height: 1.4; }
+
         .site-footer {
             background-color: #0b1120;
             color: #94a3b8;
@@ -588,6 +650,35 @@ if ($comm_sql) {
             <div class="ms-auto d-flex align-items-center gap-2">
                 <span class="small text-muted d-none d-md-inline me-2"><i class="bi bi-shield-lock-fill text-success me-1"></i><?php echo htmlspecialchars($fullname); ?></span>
                 
+                <!-- NEW: Security Audit Alerts Bell -->
+                <div class="dropdown me-2">
+                    <div class="notif-bell" data-bs-toggle="dropdown" aria-expanded="false" onclick="markSysNotificationsRead()" title="Security Audit Logs">
+                        <i class="bi bi-shield-exclamation text-danger fs-5"></i>
+                        <?php if ($unread_sec_count > 0): ?>
+                            <span class="notif-badge" id="notifBadgeCount"><?php echo $unread_sec_count; ?></span>
+                        <?php endif; ?>
+                    </div>
+                    <ul class="dropdown-menu dropdown-menu-end dropdown-menu-notif">
+                        <li class="p-3 border-bottom d-flex justify-content-between align-items-center" style="background-color: #fef2f2;">
+                            <h6 class="mb-0 fw-bold text-danger"><i class="bi bi-shield-lock-fill me-1"></i> Security Intrusion Logs</h6>
+                            <span class="badge bg-danger text-white rounded-pill"><?php echo count($sys_notifications); ?></span>
+                        </li>
+                        <?php if (empty($sys_notifications)): ?>
+                            <li class="p-4 text-center text-muted small">No suspicious activity detected. System secure.</li>
+                        <?php else: ?>
+                            <?php foreach (array_slice($sys_notifications, 0, 10) as $notif): ?>
+                                <li class="notif-item" style="border-left: 4px solid #ef4444;">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <div class="notif-title text-danger"><i class="bi bi-exclamation-octagon-fill me-1"></i><?php echo htmlspecialchars($notif['title']); ?></div>
+                                        <div class="notif-time"><i class="bi bi-clock me-1"></i><?php echo date('M d, H:i:s', strtotime($notif['timestamp'])); ?></div>
+                                    </div>
+                                    <p class="notif-msg"><?php echo htmlspecialchars($notif['message']); ?></p>
+                                </li>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </ul>
+                </div>
+
                 <button class="btn btn-outline-secondary btn-sm me-2" data-bs-toggle="modal" data-bs-target="#profileModal" title="Account & Preferences">
                     <i class="bi bi-gear-fill"></i>
                 </button>
@@ -975,7 +1066,6 @@ if ($comm_sql) {
                         if (!empty($reference_time)) {
                             $time_diff_sec = time() - strtotime($reference_time);
                             $hours = $time_diff_sec / 3600;
-                            // Threshold set to > 24 hours
                             if ($hours >= 24) {
                                 $is_bottleneck = true;
                                 $bottleneck_count++;
@@ -1313,6 +1403,11 @@ if ($comm_sql) {
             window.history.replaceState({}, '', url.toString());
         }
 
+        function markSysNotificationsRead() {
+            const badge = document.getElementById('notifBadgeCount');
+            if (badge) badge.style.display = 'none';
+        }
+
         // Silent AJAX Polling for Live Telemetry & Audit updates
         setInterval(() => {
             fetch(window.location.href)
@@ -1338,6 +1433,20 @@ if ($comm_sql) {
                         const oldBottleneckBadge = document.getElementById('bottleneckBadge');
                         if (newBottleneckBadge && oldBottleneckBadge) {
                             oldBottleneckBadge.outerHTML = newBottleneckBadge.outerHTML;
+                        }
+
+                        // NEW: Pull live security notifications dynamically
+                        const newNotifDropdown = doc.querySelector('.dropdown-menu-notif');
+                        if (newNotifDropdown) {
+                            document.querySelector('.dropdown-menu-notif').innerHTML = newNotifDropdown.innerHTML;
+                        }
+                        const oldNotifBadge = document.getElementById('notifBadgeCount');
+                        const newNotifBadge = doc.getElementById('notifBadgeCount');
+                        if (newNotifBadge) {
+                            if (oldNotifBadge) oldNotifBadge.outerHTML = newNotifBadge.outerHTML;
+                            else document.querySelector('.notif-bell').insertAdjacentHTML('beforeend', newNotifBadge.outerHTML);
+                        } else if (oldNotifBadge) {
+                            oldNotifBadge.remove();
                         }
 
                         const tablesToUpdate = ['areaAdminTable', 'sysAdminTable', 'donorTable'];
