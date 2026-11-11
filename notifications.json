@@ -1,5 +1,38 @@
 [
     {
+        "id": "notif_6af30101586e58.41998208",
+        "recipient_role": "Donor",
+        "recipient_id": 1,
+        "location": "Nairobi",
+        "title": "Consignment Collected \u2014 #6",
+        "message": "Your pledge of 1 of maize was successfully received at Nairobi Hub.",
+        "timestamp": "2026-11-10 14:33:21",
+        "stage": "Collected",
+        "is_read": false
+    },
+    {
+        "id": "notif_6af300e9c34983.62989744",
+        "recipient_role": "Donor",
+        "recipient_id": 1,
+        "location": "Nairobi",
+        "title": "Pledge Confirmed \u2014 Consignment #6",
+        "message": "Your pledge of 1 kg of maize to Nairobi Hub is logged and awaiting pickup.",
+        "timestamp": "2026-11-10 14:32:57",
+        "stage": "Pending Pickup",
+        "is_read": false
+    },
+    {
+        "id": "notif_6af300e9bf8643.73183200",
+        "recipient_role": "Area Admin",
+        "recipient_id": 0,
+        "location": "Nairobi",
+        "title": "New Aid Pledge \u2014 Consignment #6",
+        "message": "Mitesh bhudia pledged 1 kg of maize for Nairobi Hub.",
+        "timestamp": "2026-11-10 14:32:57",
+        "stage": "Pending Pickup",
+        "is_read": false
+    },
+    {
         "id": "notif_6aedf5c36da9b5.62958247",
         "recipient_role": "System Admin",
         "recipient_id": 0,
