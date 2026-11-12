@@ -732,9 +732,19 @@ $donor_active_pledges = max(0, $donor_total_pledges - $donor_delivered_pledges);
                             ORDER BY c.Commodity_ID DESC
                         ";
                         $res_needs = $conn->query($sql_needs);
+                        $has_active_needs = false;
 
                         if ($res_needs and $res_needs->num_rows > 0) {
                             while ($row_n = $res_needs->fetch_assoc()) {
+                                // Extract numeric value from Quantity string (e.g. "0 kg" -> 0)
+                                $numeric_qty = (float) filter_var($row_n["Quantity"], FILTER_SANITIZE_NUMBER_FLOAT, FILTER_FLAG_ALLOW_FRACTION);
+                                
+                                // FIX: Do not display fulfilled or negative needs
+                                if ($numeric_qty <= 0) {
+                                    continue;
+                                }
+                                
+                                $has_active_needs = true;
                                 echo "<tr>";
                                 echo "<td><span class='badge bg-light text-dark border'>#" . htmlspecialchars($row_n["Commodity_ID"]) . "</span></td>";
                                 echo "<td>" . htmlspecialchars($row_n["Admin_Name"]) . "</td>";
@@ -749,7 +759,9 @@ $donor_active_pledges = max(0, $donor_total_pledges - $donor_delivered_pledges);
                                       </td>";
                                 echo "</tr>";
                             }
-                        } else {
+                        } 
+                        
+                        if (!$has_active_needs) {
                             echo "<tr><td colspan='7' class='text-center py-4 text-muted'>No current deficit requests listed.</td></tr>";
                         }
                         ?>
@@ -978,6 +990,7 @@ $donor_active_pledges = max(0, $donor_total_pledges - $donor_delivered_pledges);
                         <div class="mb-3">
                             <label class="form-label small fw-semibold">Quantity Pledged</label>
                             <div class="input-group">
+                                <!-- FIX: Added max limit handled by JavaScript -->
                                 <input type="number" step="any" min="1" required name="quantity" id="pledgeQtyInput" class="form-control" placeholder="Enter amount to donate" oninput="calculatePredictiveImpact()">
                                 <span class="input-group-text bg-light" id="pledgeUnitDisplay">units</span>
                             </div>
@@ -1228,8 +1241,14 @@ $donor_active_pledges = max(0, $donor_total_pledges - $donor_delivered_pledges);
             const unit = parts.length > 1 ? parts[parts.length - 1] : 'units';
             document.getElementById('pledgeUnitDisplay').textContent = unit;
             
-            // Reset the Predictive Engine Widget on open
-            document.getElementById('pledgeQtyInput').value = '';
+            // FIX: Restrict input to the maximum required quantity
+            const numericMax = parseFloat(comm.Quantity);
+            const qtyInput = document.getElementById('pledgeQtyInput');
+            qtyInput.max = numericMax;
+            
+            // Reset the Predictive Engine Widget and set placeholder on open
+            qtyInput.value = '';
+            qtyInput.placeholder = `Max required: ${numericMax}`;
             document.getElementById('aiEstimateText').innerHTML = "Enter a quantity above to see the estimated algorithmic impact of your donation.";
 
             new bootstrap.Modal(document.getElementById('pledgeModal')).show();

@@ -702,9 +702,18 @@ $stat_delivered = $conn->query("SELECT COUNT(*) AS total FROM `goods_donated` WH
                         $stmt_c->bind_param("i", $admin_id);
                         $stmt_c->execute();
                         $res_c = $stmt_c->get_result();
+                        $has_active_needs_admin = false;
 
                         if ($res_c and $res_c->num_rows > 0) {
                             while ($row_c = $res_c->fetch_assoc()) {
+                                // Filter out 0 or negative items
+                                $numeric_qty = (float) filter_var($row_c["Quantity"], FILTER_SANITIZE_NUMBER_FLOAT, FILTER_FLAG_ALLOW_FRACTION);
+                                
+                                if ($numeric_qty <= 0) {
+                                    continue;
+                                }
+
+                                $has_active_needs_admin = true;
                                 echo "<tr>";
                                 echo "<td><span class='badge bg-light text-dark border'>#" . htmlspecialchars($row_c["Commodity_ID"]) . "</span></td>";
                                 echo "<td>" . htmlspecialchars($row_c["Area_Administrator"]) . "</td>";
@@ -720,7 +729,9 @@ $stat_delivered = $conn->query("SELECT COUNT(*) AS total FROM `goods_donated` WH
                                       </td>";
                                 echo "</tr>";
                             }
-                        } else {
+                        } 
+                        
+                        if (!$has_active_needs_admin) {
                             echo "<tr><td colspan='7' class='text-center py-4 text-muted'>No commodities currently declared for this regional hub.</td></tr>";
                         }
                         $stmt_c->close();
